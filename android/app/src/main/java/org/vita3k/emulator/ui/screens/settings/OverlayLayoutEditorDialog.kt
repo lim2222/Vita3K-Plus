@@ -32,6 +32,7 @@ internal fun OverlayLayoutEditorDialog(
     val context = LocalContext.current
     val activity = context.findActivity()
     var overlayView by remember { mutableStateOf<InputOverlay?>(null) }
+    var editMode by remember { mutableStateOf(InputOverlay.EditMode.MOVE) }
 
     fun finishEditor() {
         onDismiss(overlayView?.captureLayout() ?: overlayLayout)
@@ -60,7 +61,6 @@ internal fun OverlayLayoutEditorDialog(
             },
             update = { view ->
                 overlayView = view
-                view.setLayout(overlayLayout)
                 view.setAllowVirtualController(false)
                 view.setAutoHideEnabled(false)
                 view.setIsInEditMode(true)
@@ -75,6 +75,11 @@ internal fun OverlayLayoutEditorDialog(
             onDone = ::finishEditor,
             onReset = {
                 overlayView?.setLayout(OverlayStore.defaultLayout(context))
+            },
+            editMode = editMode,
+            onEditModeChange = { mode ->
+                editMode = mode
+                overlayView?.setEditMode(mode)
             }
         )
     }

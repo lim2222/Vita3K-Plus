@@ -7,6 +7,7 @@ val DEFAULT_OVERLAY_MASK: Int =
 
 data class OverlayConfig(
     val overlayMask: Int = DEFAULT_OVERLAY_MASK,
+    val visibleButtons: Long = OverlayButtonRegistry.defaultMask(),
     val overlayScale: Int = 100,
     val overlayOpacity: Int = 100,
     val hideOverlayWhenControllerConnected: Boolean = true
@@ -70,6 +71,17 @@ data class OverlayConfig(
             baseMask and InputOverlay.OVERLAY_MASK_HIDE_TOGGLE.inv()
         }
         return copy(overlayMask = updatedMask).normalized()
+    }
+
+    // ---- 新增:每个按钮独立开关(跟上面的组开关并存,取交集判断) ----
+
+    fun isButtonVisible(legacyId: Int): Boolean =
+        visibleButtons and OverlayButtonRegistry.bitFor(legacyId) != 0L
+
+    fun withButtonVisible(legacyId: Int, visible: Boolean): OverlayConfig {
+        val bit = OverlayButtonRegistry.bitFor(legacyId)
+        val updated = if (visible) visibleButtons or bit else visibleButtons and bit.inv()
+        return copy(visibleButtons = updated)
     }
 
     fun normalized(): OverlayConfig {

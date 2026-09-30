@@ -27,8 +27,16 @@ public final class InputOverlayDrawableJoystick
   private final int mJoystickYControl;
   private int mControlPositionX, mControlPositionY;
   private int mPreviousTouchX, mPreviousTouchY;
-  private final int mWidth;
-  private final int mHeight;
+  private int mWidth;
+  private int mHeight;
+  private final int mBaseWidth;
+  private final int mBaseHeight;
+  private final int mInnerBaseWidth;
+  private final int mInnerBaseHeight;
+  private float mCurrentScale = 1.0f;
+  private float mScaleAtEditStart = 1.0f;
+  private int mCenterX, mCenterY;
+  private int mResizeStartDist;
   private Rect mVirtBounds;
   private Rect mOrigBounds;
   private int mOpacity;
@@ -65,6 +73,10 @@ public final class InputOverlayDrawableJoystick
     mBoundsBoxBitmap = new BitmapDrawable(res, bitmapOuter);
     mWidth = bitmapOuter.getWidth();
     mHeight = bitmapOuter.getHeight();
+    mBaseWidth = mWidth;
+    mBaseHeight = mHeight;
+    mInnerBaseWidth = rectInner.width();
+    mInnerBaseHeight = rectInner.height();
 
     setBounds(rectOuter);
     mDefaultStateInnerBitmap.setBounds(rectInner);
@@ -180,19 +192,73 @@ public final class InputOverlayDrawableJoystick
         mControlPositionX += deltaX;
         mControlPositionY += deltaY;
         setBounds(new Rect(mControlPositionX, mControlPositionY,
-                mOuterBitmap.getIntrinsicWidth() + mControlPositionX,
-                mOuterBitmap.getIntrinsicHeight() + mControlPositionY));
+                mWidth + mControlPositionX,
+                mHeight + mControlPositionY));
         setVirtBounds(new Rect(mControlPositionX, mControlPositionY,
-                mOuterBitmap.getIntrinsicWidth() + mControlPositionX,
-                mOuterBitmap.getIntrinsicHeight() + mControlPositionY));
+                mWidth + mControlPositionX,
+                mHeight + mControlPositionY));
         SetInnerBounds();
-        setOrigBounds(new Rect(new Rect(mControlPositionX, mControlPositionY,
-                mOuterBitmap.getIntrinsicWidth() + mControlPositionX,
-                mOuterBitmap.getIntrinsicHeight() + mControlPositionY)));
+        setOrigBounds(new Rect(mControlPositionX, mControlPositionY,
+                mWidth + mControlPositionX,
+                mHeight + mControlPositionY));
         mPreviousTouchX = (int) event.getX();
         mPreviousTouchY = (int) event.getY();
         break;
     }
+  }
+
+  public void onConfigureResize(MotionEvent event)
+  {
+    switch (event.getAction())
+    {
+      case MotionEvent.ACTION_DOWN:
+        mCenterX = mControlPositionX + mWidth / 2;
+        mCenterY = mControlPositionY + mHeight / 2;
+        int dx0 = (int) event.getX() - mCenterX;
+        int dy0 = (int) event.getY() - mCenterY;
+        mResizeStartDist = (int) Math.sqrt(dx0 * dx0 + dy0 * dy0);
+        if (mResizeStartDist < 10) mResizeStartDist = 10;
+        break;
+      case MotionEvent.ACTION_MOVE:
+        int dx = (int) event.getX() - mCenterX;
+        int dy = (int) event.getY() - mCenterY;
+        int dist = (int) Math.sqrt(dx * dx + dy * dy);
+        float ratio = (float) dist / mResizeStartDist;
+        mCurrentScale = mCurrentScale * ratio;
+        if (mCurrentScale < 0.5f) mCurrentScale = 0.5f;
+        if (mCurrentScale > 2.5f) mCurrentScale = 2.5f;
+
+        mWidth = (int) (mBaseWidth * mCurrentScale);
+        mHeight = (int) (mBaseHeight * mCurrentScale);
+        mControlPositionX = mCenterX - mWidth / 2;
+        mControlPositionY = mCenterY - mHeight / 2;
+
+        Rect outer = new Rect(mControlPositionX, mControlPositionY,
+                mControlPositionX + mWidth, mControlPositionY + mHeight);
+        setBounds(new Rect(outer));
+        setVirtBounds(new Rect(outer));
+        setOrigBounds(new Rect(outer));
+
+        int innerW = (int) (mInnerBaseWidth * mCurrentScale);
+        int innerH = (int) (mInnerBaseHeight * mCurrentScale);
+        mDefaultStateInnerBitmap.setBounds(0, 0, innerW, innerH);
+        mPressedStateInnerBitmap.setBounds(0, 0, innerW, innerH);
+        SetInnerBounds();
+
+        mResizeStartDist = dist;
+        break;
+    }
+  }
+
+  public void setScaleAtEditStart(float scale)
+  {
+    mScaleAtEditStart = scale;
+    mCurrentScale = 1.0f;
+  }
+
+  public float getFinalScale()
+  {
+    return mScaleAtEditStart * mCurrentScale;
   }
 
   public float getX()

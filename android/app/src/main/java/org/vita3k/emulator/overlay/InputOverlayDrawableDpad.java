@@ -26,11 +26,17 @@ public final class InputOverlayDrawableDpad
   private int mControlPositionX, mControlPositionY;
   private int mWidth;
   private int mHeight;
+  private int mBaseWidth;
+  private int mBaseHeight;
+  private float mCurrentScale = 1.0f;
+  private float mScaleAtEditStart = 1.0f;
+  private int mCenterX, mCenterY;
+  private int mResizeStartDist;
   private BitmapDrawable mDefaultStateBitmap;
   private BitmapDrawable mPressedOneDirectionStateBitmap;
   private BitmapDrawable mPressedTwoDirectionsStateBitmap;
   private int mPressState = STATE_DEFAULT;
-
+  
   public static final int STATE_DEFAULT = 0;
   public static final int STATE_PRESSED_UP = 1;
   public static final int STATE_PRESSED_DOWN = 2;
@@ -65,6 +71,8 @@ public final class InputOverlayDrawableDpad
 
     mWidth = mDefaultStateBitmap.getIntrinsicWidth();
     mHeight = mDefaultStateBitmap.getIntrinsicHeight();
+    mBaseWidth = mWidth;
+    mBaseHeight = mHeight;
 
     mLegacyId = legacyId;
     mControls[0] = upControl;
@@ -167,6 +175,50 @@ public final class InputOverlayDrawableDpad
         mPreviousTouchY = (int) event.getY();
         break;
     }
+  }
+
+  public void onConfigureResize(MotionEvent event)
+  {
+    switch (event.getAction())
+    {
+      case MotionEvent.ACTION_DOWN:
+        mCenterX = mControlPositionX + mWidth / 2;
+        mCenterY = mControlPositionY + mHeight / 2;
+        int dx0 = (int) event.getX() - mCenterX;
+        int dy0 = (int) event.getY() - mCenterY;
+        mResizeStartDist = (int) Math.sqrt(dx0 * dx0 + dy0 * dy0);
+        if (mResizeStartDist < 10) mResizeStartDist = 10;
+        break;
+      case MotionEvent.ACTION_MOVE:
+        int dx = (int) event.getX() - mCenterX;
+        int dy = (int) event.getY() - mCenterY;
+        int dist = (int) Math.sqrt(dx * dx + dy * dy);
+        float ratio = (float) dist / mResizeStartDist;
+        mCurrentScale = mCurrentScale * ratio;
+        if (mCurrentScale < 0.5f) mCurrentScale = 0.5f;
+        if (mCurrentScale > 2.5f) mCurrentScale = 2.5f;
+
+        mWidth = (int) (mBaseWidth * mCurrentScale);
+        mHeight = (int) (mBaseHeight * mCurrentScale);
+        mControlPositionX = mCenterX - mWidth / 2;
+        mControlPositionY = mCenterY - mHeight / 2;
+        setBounds(mControlPositionX, mControlPositionY,
+                mControlPositionX + mWidth, mControlPositionY + mHeight);
+
+        mResizeStartDist = dist;
+        break;
+    }
+  }
+
+  public void setScaleAtEditStart(float scale)
+  {
+    mScaleAtEditStart = scale;
+    mCurrentScale = 1.0f;
+  }
+
+  public float getFinalScale()
+  {
+    return mScaleAtEditStart * mCurrentScale;
   }
 
   public void setPosition(int x, int y)

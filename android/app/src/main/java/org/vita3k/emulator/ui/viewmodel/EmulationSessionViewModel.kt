@@ -12,6 +12,7 @@ import org.vita3k.emulator.overlay.DEFAULT_OVERLAY_MASK
 import org.vita3k.emulator.overlay.OverlayConfig
 import org.vita3k.emulator.overlay.OverlayState
 import org.vita3k.emulator.overlay.OverlayStore
+import org.vita3k.emulator.overlay.OverlayButtonRegistry
 
 data class EmulationSessionUiState(
     val titleId: String = "",
@@ -23,6 +24,7 @@ data class EmulationSessionUiState(
     val showExitConfirmation: Boolean = false,
     val controlsVisible: Boolean = true,
     val overlayMask: Int = DEFAULT_OVERLAY_MASK,
+	val visibleButtons: Long = OverlayButtonRegistry.defaultMask(),
     val l2r2Visible: Boolean = false,
     val l3r3Visible: Boolean = false,
     val touchSwitchVisible: Boolean = true,
@@ -85,6 +87,7 @@ class EmulationSessionViewModel(application: Application) : AndroidViewModel(app
             else -> uiState.overlayMask
         }
         emulator.setControllerOverlayState(visibleMask, uiState.isEditingControls, false)
+		emulator.setControllerOverlayConfig(currentOverlayConfig())
     }
 
     fun handleBackPressed(emulator: Emulator): Boolean {
@@ -280,6 +283,7 @@ class EmulationSessionViewModel(application: Application) : AndroidViewModel(app
     fun currentOverlayConfig(): OverlayConfig {
         return OverlayConfig(
             overlayMask = uiState.overlayMask,
+			visibleButtons = uiState.visibleButtons,
             overlayScale = uiState.overlayScale,
             overlayOpacity = uiState.overlayOpacity,
             hideOverlayWhenControllerConnected = uiState.hideOverlayWhenControllerConnected
@@ -374,6 +378,7 @@ class EmulationSessionViewModel(application: Application) : AndroidViewModel(app
         return copy(
             controlsVisible = normalized.controlsVisible,
             overlayMask = normalized.overlayMask,
+			visibleButtons = normalized.visibleButtons,
             l2r2Visible = normalized.l2r2Visible,
             l3r3Visible = normalized.l3r3Visible,
             touchSwitchVisible = normalized.touchSwitchVisible,

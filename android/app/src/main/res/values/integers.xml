@@ -36,4 +36,6 @@
     <integer name="BUTTON_TOUCH_SWITCH_Y">5</integer>
     <integer name="BUTTON_TOUCH_HIDE_X">600</integer>
     <integer name="BUTTON_TOUCH_HIDE_Y">875</integer>
+	<integer name="BUTTON_TATACON_X">400</integer>
+	<integer name="BUTTON_TATACON_Y">400</integer>
 </resources>

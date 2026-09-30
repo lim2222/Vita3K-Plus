@@ -58,6 +58,7 @@ import org.vita3k.emulator.data.NativeImeState;
 import org.vita3k.emulator.overlay.InputOverlay;
 import org.vita3k.emulator.overlay.OverlayLayout;
 import org.vita3k.emulator.overlay.OverlayStore;
+import org.vita3k.emulator.overlay.OverlayConfig;
 import org.vita3k.emulator.ui.screens.emulation.NativeImeOverlayHost;
 import org.vita3k.emulator.ui.screens.emulation.EmulationPauseMenuHost;
 import org.vita3k.emulator.ui.viewmodel.EmulationSessionViewModel;
@@ -364,6 +365,24 @@ public class Emulator extends SDLActivity
 
         if(reset)
             overlay.resetButtonPlacement();
+    }
+
+	@Keep
+	public void setControllerOverlayConfig(OverlayConfig config) {
+		InputOverlay overlay = getmOverlay();
+		if (overlay == null)
+			return;
+
+		overlay.setOverlayConfig(config);
+	}
+
+    @Keep
+    public void setControllerOverlayEditMode(InputOverlay.EditMode mode) {
+        InputOverlay overlay = getmOverlay();
+        if (overlay == null)
+            return;
+
+        overlay.setEditMode(mode);
     }
 
     @Keep

@@ -1,6 +1,6 @@
 <resources>
     <!-- App name -->
-    <string name="app_name">Vita3K+</string>
+    <string name="app_name">Vita3K+Taiko</string>
 
     <!-- Common actions -->
     <string name="action_ok">OK</string>

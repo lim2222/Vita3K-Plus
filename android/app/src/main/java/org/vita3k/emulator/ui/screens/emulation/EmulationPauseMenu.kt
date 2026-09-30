@@ -91,6 +91,7 @@ import org.vita3k.emulator.ui.theme.ApplyDialogDim
 import org.vita3k.emulator.ui.theme.Vita3KTheme
 import org.vita3k.emulator.ui.viewmodel.EmulationSessionViewModel
 import org.vita3k.emulator.ui.viewmodel.SettingsViewModel
+import org.vita3k.emulator.overlay.InputOverlay
 
 private enum class PauseSettingsScope {
     Global,
@@ -171,8 +172,14 @@ private fun EmulationPauseMenu(
         menuVisibilityState.targetState = uiState.showMenu
     }
 
+    var editMode by remember { mutableStateOf(InputOverlay.EditMode.MOVE) }
+
     LaunchedEffect(uiState.isEditingControls) {
         controlsVisibilityState.targetState = uiState.isEditingControls
+        if (uiState.isEditingControls) {
+            editMode = InputOverlay.EditMode.MOVE
+            activity.setControllerOverlayEditMode(InputOverlay.EditMode.MOVE)
+        }
     }
 
     val hostVisible = menuVisibilityState.currentState ||
@@ -194,6 +201,11 @@ private fun EmulationPauseMenu(
             visibleState = controlsVisibilityState,
             onDone = { sessionViewModel.finishControlsEditor(activity) },
             onReset = { sessionViewModel.resetControlsLayout(activity) },
+            editMode = editMode,
+            onEditModeChange = { mode ->
+                editMode = mode
+                activity.setControllerOverlayEditMode(mode)
+            },
             modifier = Modifier.fillMaxSize()
         )
 
@@ -1000,6 +1012,8 @@ private fun ControlsEditorBar(
     visibleState: MutableTransitionState<Boolean>,
     onDone: () -> Unit,
     onReset: () -> Unit,
+    editMode: InputOverlay.EditMode,
+    onEditModeChange: (InputOverlay.EditMode) -> Unit,
     modifier: Modifier = Modifier
 ) {
     AnimatedVisibility(
@@ -1011,6 +1025,8 @@ private fun ControlsEditorBar(
         OverlayEditorPalette(
             onDone = onDone,
             onReset = onReset,
+            editMode = editMode,
+            onEditModeChange = onEditModeChange,
             modifier = modifier
         )
     }

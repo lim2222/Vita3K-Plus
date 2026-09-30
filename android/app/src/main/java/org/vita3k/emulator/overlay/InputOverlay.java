@@ -44,6 +44,7 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
   private final Set<InputOverlayDrawableButton> overlayButtons = new HashSet<>();
   private final Set<InputOverlayDrawableDpad> overlayDpads = new HashSet<>();
   private final Set<InputOverlayDrawableJoystick> overlayJoysticks = new HashSet<>();
+  private final Set<InputOverlayDrawableTatacon> overlayTatacons = new HashSet<>();
   private final Runnable mHideOverlayTicker = new Runnable() {
     @Override
     public void run() {
@@ -54,15 +55,21 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
 
   private int mOverlayMask = 0;
   private boolean mIsInEditMode = false;
+  public enum EditMode { MOVE, RESIZE }
+  private EditMode mEditMode = EditMode.MOVE;
   private boolean mAutoHideEnabled = true;
   private boolean mAllowVirtualController = true;
   private boolean mControllerAttached = false;
+  private OverlayConfig mOverlayConfig;
   private InputOverlayDrawableButton mButtonBeingConfigured;
   private InputOverlayDrawableDpad mDpadBeingConfigured;
   private InputOverlayDrawableJoystick mJoystickBeingConfigured;
+  private InputOverlayDrawableTatacon mTataconBeingConfigured;
   private float mScale = 1.0f;
   private int mOpacity = 100;
   private OverlayLayout mLayout;
+  private int mStableWidth = 0;
+  private int mStableHeight = 0;
 
   // last Time the screen was touched
   private long mlastTouchTime;
@@ -175,6 +182,13 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
     updateVirtualControllerState();
   }
 
+  public void setOverlayConfig(OverlayConfig config) {
+    if (config == null) return;
+    mOverlayConfig = config;
+    invalidate();
+  }
+
+
   public int getOverlayMask() {
     return mOverlayMask;
   }
@@ -202,6 +216,13 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
       joystick.release();
     }
 
+    for (InputOverlayDrawableTatacon tatacon : overlayTatacons) {
+      if (tatacon.getActiveZone() != InputOverlayDrawableTatacon.ZONE_NONE)
+        setButton(tatacon.getControl(tatacon.getActiveZone()), false);
+      tatacon.setActiveZone(InputOverlayDrawableTatacon.ZONE_NONE);
+      tatacon.setTrackId(-1);
+    }
+
     invalidate();
   }
 
@@ -215,6 +236,8 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
     for (InputOverlayDrawableButton button : overlayButtons)
     {
       int role = button.getRole();
+	  
+	  if (!mOverlayConfig.isButtonVisible(button.getLegacyId())) continue;
 
       if (mHideOverlayButtons) {
         if ((role & OVERLAY_MASK_UTILITY) == 0 || (role & mOverlayMask) == 0)
@@ -230,12 +253,20 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
     {
       for (InputOverlayDrawableDpad dpad : overlayDpads)
       {
+        if (!mOverlayConfig.isButtonVisible(dpad.getLegacyId())) continue;
         dpad.draw(canvas);
       }
 
       for (InputOverlayDrawableJoystick joystick : overlayJoysticks)
       {
+      if (!mOverlayConfig.isButtonVisible(joystick.getLegacyId())) continue;
         joystick.draw(canvas);
+      }
+	  
+      for (InputOverlayDrawableTatacon tatacon : overlayTatacons)
+      {
+      if (!mOverlayConfig.isButtonVisible(tatacon.getLegacyId())) continue;
+      tatacon.draw(canvas);
       }
     }
   }
@@ -267,6 +298,8 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
     {
       int buttonRole = button.getRole();
       int legacyId = button.getLegacyId();
+
+      if (!mOverlayConfig.isButtonVisible(legacyId)) continue;
 
       if (mHideOverlayButtons &&
               (((buttonRole & OVERLAY_MASK_UTILITY) == 0) || (buttonRole & mOverlayMask) == 0))
@@ -317,6 +350,8 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
     {
       for (InputOverlayDrawableDpad dpad : overlayDpads)
       {
+		if (!mOverlayConfig.isButtonVisible(dpad.getLegacyId())) continue;
+
         // Determine the button state to apply based on the MotionEvent action flag.
         switch (event.getAction() & MotionEvent.ACTION_MASK)
         {
@@ -373,6 +408,8 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
 
       for (InputOverlayDrawableJoystick joystick : overlayJoysticks)
       {
+		if (!mOverlayConfig.isButtonVisible(joystick.getLegacyId())) continue;
+
         if (joystick.TrackEvent(event))
         {
           concerned = true;
@@ -384,6 +421,51 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
           setAxis(joystick.getXControl(), (short)joyX);
           setAxis(joystick.getYControl(), (short)joyY);
         }
+      }
+    }
+
+    for (InputOverlayDrawableTatacon tatacon : overlayTatacons)
+    {
+      if (!mOverlayConfig.isButtonVisible(tatacon.getLegacyId())) continue;
+
+      switch (action)
+      {
+        case MotionEvent.ACTION_DOWN:
+        case MotionEvent.ACTION_POINTER_DOWN:
+          if (tatacon.getBounds().contains((int) event.getX(pointerIndex), (int) event.getY(pointerIndex)))
+          {
+            tatacon.setTrackId(event.getPointerId(pointerIndex));
+            concerned = true;
+          }
+          // 有意贯穿到 MOVE，按下瞬间就判定
+        case MotionEvent.ACTION_MOVE:
+          if (tatacon.getTrackId() == event.getPointerId(pointerIndex))
+          {
+            concerned = true;
+            int zone = InputOverlayDrawableTatacon.zoneForTouch(tatacon.getBounds(),
+                    event.getX(pointerIndex), event.getY(pointerIndex));
+            int prevZone = tatacon.getActiveZone();
+            if (zone != prevZone)
+            {
+              if (prevZone != InputOverlayDrawableTatacon.ZONE_NONE)
+                setButton(tatacon.getControl(prevZone), false);
+              if (zone != InputOverlayDrawableTatacon.ZONE_NONE)
+                setButton(tatacon.getControl(zone), true);
+              tatacon.setActiveZone(zone);
+            }
+          }
+          break;
+        case MotionEvent.ACTION_UP:
+        case MotionEvent.ACTION_POINTER_UP:
+          if (tatacon.getTrackId() == event.getPointerId(pointerIndex))
+          {
+            concerned = true;
+            if (tatacon.getActiveZone() != InputOverlayDrawableTatacon.ZONE_NONE)
+              setButton(tatacon.getControl(tatacon.getActiveZone()), false);
+            tatacon.setActiveZone(InputOverlayDrawableTatacon.ZONE_NONE);
+            tatacon.setTrackId(-1);
+          }
+          break;
       }
     }
 
@@ -415,31 +497,35 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
                   button.getBounds().contains(fingerPositionX, fingerPositionY))
           {
             mButtonBeingConfigured = button;
-            mButtonBeingConfigured.onConfigureTouch(event);
+			mButtonBeingConfigured.onConfigureTouch(event);
+			mButtonBeingConfigured.onConfigureResize(event);
             intersect = true;
           }
           break;
         case MotionEvent.ACTION_MOVE:
-          if (mButtonBeingConfigured != null)
-          {
-            mButtonBeingConfigured.onConfigureTouch(event);
-            invalidate();
-            return true;
-          }
-          break;
+			if (mButtonBeingConfigured != null)
+			{
+				if (mEditMode == EditMode.MOVE) {
+					mButtonBeingConfigured.onConfigureTouch(event);
+				} else {
+					mButtonBeingConfigured.onConfigureResize(event);
+				}
+				invalidate();
+				return true;
+			}
+			break;
 
-        case MotionEvent.ACTION_UP:
-        case MotionEvent.ACTION_POINTER_UP:
-          if (mButtonBeingConfigured == button)
-          {
-            // Persist button position by saving new place.
-            saveControlPosition(mButtonBeingConfigured.getLegacyId(),
-                    mButtonBeingConfigured.getBounds().left,
-                    mButtonBeingConfigured.getBounds().top);
-            mButtonBeingConfigured = null;
-            intersect = true;
-          }
-          break;
+		case MotionEvent.ACTION_UP:
+		case MotionEvent.ACTION_POINTER_UP:
+			if (mButtonBeingConfigured == button)
+			{
+				saveControlPosition(mButtonBeingConfigured.getLegacyId(),
+				        mButtonBeingConfigured.getBounds(),
+				        mButtonBeingConfigured.getFinalScale());
+				mButtonBeingConfigured = null;
+				intersect = true;
+			}
+			break;
       }
     }
 
@@ -456,13 +542,18 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
           {
             mDpadBeingConfigured = dpad;
             mDpadBeingConfigured.onConfigureTouch(event);
+            mDpadBeingConfigured.onConfigureResize(event);
             intersect = true;
           }
           break;
         case MotionEvent.ACTION_MOVE:
           if (mDpadBeingConfigured != null)
           {
-            mDpadBeingConfigured.onConfigureTouch(event);
+            if (mEditMode == EditMode.MOVE) {
+              mDpadBeingConfigured.onConfigureTouch(event);
+            } else {
+              mDpadBeingConfigured.onConfigureResize(event);
+            }
             invalidate();
             return true;
           }
@@ -472,10 +563,10 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
         case MotionEvent.ACTION_POINTER_UP:
           if (mDpadBeingConfigured == dpad)
           {
-            // Persist button position by saving new place.
+            // Persist button position and scale by saving new place.
             saveControlPosition(mDpadBeingConfigured.getLegacyId(),
-                    mDpadBeingConfigured.getBounds().left,
-                    mDpadBeingConfigured.getBounds().top);
+                    mDpadBeingConfigured.getBounds(),
+                    mDpadBeingConfigured.getFinalScale());
             mDpadBeingConfigured = null;
             intersect = true;
           }
@@ -494,13 +585,18 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
           {
             mJoystickBeingConfigured = joystick;
             mJoystickBeingConfigured.onConfigureTouch(event);
+            mJoystickBeingConfigured.onConfigureResize(event);
             intersect = true;
           }
           break;
         case MotionEvent.ACTION_MOVE:
           if (mJoystickBeingConfigured != null)
           {
-            mJoystickBeingConfigured.onConfigureTouch(event);
+            if (mEditMode == EditMode.MOVE) {
+              mJoystickBeingConfigured.onConfigureTouch(event);
+            } else {
+              mJoystickBeingConfigured.onConfigureResize(event);
+            }
             invalidate();
             intersect = true;
           }
@@ -510,9 +606,50 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
           if (mJoystickBeingConfigured != null)
           {
             saveControlPosition(mJoystickBeingConfigured.getLegacyId(),
-                    mJoystickBeingConfigured.getBounds().left,
-                    mJoystickBeingConfigured.getBounds().top);
+                    mJoystickBeingConfigured.getBounds(),
+                    mJoystickBeingConfigured.getFinalScale());
             mJoystickBeingConfigured = null;
+            intersect = true;
+          }
+          break;
+      }
+    }
+
+    for (InputOverlayDrawableTatacon tatacon : overlayTatacons)
+    {
+      switch (event.getAction() & MotionEvent.ACTION_MASK)
+      {
+        case MotionEvent.ACTION_DOWN:
+        case MotionEvent.ACTION_POINTER_DOWN:
+          if (mTataconBeingConfigured == null &&
+                  tatacon.getBounds().contains(fingerPositionX, fingerPositionY))
+          {
+            mTataconBeingConfigured = tatacon;
+            mTataconBeingConfigured.onConfigureTouch(event);
+            mTataconBeingConfigured.onConfigureResize(event);
+            intersect = true;
+          }
+          break;
+        case MotionEvent.ACTION_MOVE:
+          if (mTataconBeingConfigured != null)
+          {
+            if (mEditMode == EditMode.MOVE) {
+              mTataconBeingConfigured.onConfigureTouch(event);
+            } else {
+              mTataconBeingConfigured.onConfigureResize(event);
+            }
+            invalidate();
+            return true;
+          }
+          break;
+        case MotionEvent.ACTION_UP:
+        case MotionEvent.ACTION_POINTER_UP:
+          if (mTataconBeingConfigured == tatacon)
+          {
+            saveControlPosition(mTataconBeingConfigured.getLegacyId(),
+                    mTataconBeingConfigured.getBounds(),
+                    mTataconBeingConfigured.getFinalScale());
+            mTataconBeingConfigured = null;
             intersect = true;
           }
           break;
@@ -630,6 +767,11 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
               R.drawable.joystick, R.drawable.joystick_pressed,
               ButtonType.STICK_RIGHT, ControlId.axis_right_x,
               ControlId.axis_right_y, layout, layoutBounds, mScale, mOpacity));
+      overlayTatacons.add(initializeOverlayTatacon(getContext(), R.drawable.tatacon,
+              ButtonType.TATACON,
+              ControlId.dup, ControlId.ddown, ControlId.b, ControlId.a,
+              ControlId.l1, ControlId.r1,
+              layout, layoutBounds, mScale, mOpacity));
   }
 
   public void refreshControls()
@@ -638,6 +780,7 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
     overlayButtons.clear();
     overlayDpads.clear();
     overlayJoysticks.clear();
+	overlayTatacons.clear();
 
     LayoutBounds layoutBounds = resolveLayoutBounds();
     addVitaOverlayControls(layoutBounds, mLayout);
@@ -664,12 +807,16 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
     }
   }
 
-  private void saveControlPosition(int buttonType, int x, int y)
-  {
+  private void saveControlPosition(int buttonType, Rect bounds, float scale) {
+    int centerX = bounds.left + bounds.width() / 2;
+    int centerY = bounds.top + bounds.height() / 2;
     LayoutBounds layoutBounds = resolveLayoutBounds();
-    float normalizedX = layoutBounds.width > 0 ? (float) x / layoutBounds.width : 0f;
-    float normalizedY = layoutBounds.height > 0 ? (float) y / layoutBounds.height : 0f;
-    OverlayLayout updatedLayout = mLayout.withPosition(buttonType, normalizedX, normalizedY);
+    float normalizedX = layoutBounds.width > 0 ? (float) centerX / layoutBounds.width : 0f;
+    float normalizedY = layoutBounds.height > 0 ? (float) centerY / layoutBounds.height : 0f;
+    android.util.Log.d("TataconDebug", "SAVE buttonType=" + buttonType + " cx=" + centerX + " cy=" + centerY
+            + " layoutW=" + layoutBounds.width + " layoutH=" + layoutBounds.height
+            + " normX=" + normalizedX + " normY=" + normalizedY + " scale=" + scale);
+    OverlayLayout updatedLayout = mLayout.withPosition(buttonType, normalizedX, normalizedY, scale);
     setLayout(updatedLayout, false);
   }
 
@@ -710,6 +857,11 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
 
     scale *= globalScale;
 
+    OverlayPosition position = layout.positionFor(legacyId);
+    if (position == null)
+      position = new OverlayPosition(0f, 0f);
+    scale *= position.getScale();
+
     // Initialize the InputOverlayDrawableButton.
     final Bitmap defaultStateBitmap =
             resizeBitmap(context, BitmapFactory.decodeResource(res, defaultResId), scale);
@@ -718,6 +870,7 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
     final InputOverlayDrawableButton overlayDrawable =
             new InputOverlayDrawableButton(res, defaultStateBitmap, pressedStateBitmap, legacyId,
                     control, role);
+    overlayDrawable.setScaleAtEditStart(position.getScale());
 
     if (legacyId == ButtonType.BUTTON_TOUCH_SWITCH)
     {
@@ -725,14 +878,13 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
       overlayDrawable.setThirdStateBitmap(res, bothStateBitmap);
     }
 
-    OverlayPosition position = layout.positionFor(legacyId);
-    if (position == null)
-      position = new OverlayPosition(0f, 0f);
-    int drawableX = Math.round(position.getNormalizedX() * layoutBounds.width);
-    int drawableY = Math.round(position.getNormalizedY() * layoutBounds.height);
-
     int width = overlayDrawable.getWidth();
     int height = overlayDrawable.getHeight();
+
+    int centerX = Math.round(position.getNormalizedX() * layoutBounds.width);
+    int centerY = Math.round(position.getNormalizedY() * layoutBounds.height);
+    int drawableX = centerX - width / 2;
+    int drawableY = centerY - height / 2;
 
     // Now set the bounds for the InputOverlayDrawableButton.
     // This will dictate where on the screen (and the what the size) the InputOverlayDrawableButton will be.
@@ -781,6 +933,11 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
 
     scale *= globalScale;
 
+    OverlayPosition position = layout.positionFor(legacyId);
+    if (position == null)
+      position = new OverlayPosition(0f, 0f);
+    scale *= position.getScale();
+
     // Initialize the InputOverlayDrawableDpad.
     final Bitmap defaultStateBitmap =
             resizeBitmap(context, BitmapFactory.decodeResource(res, defaultResId), scale);
@@ -794,15 +951,15 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
             new InputOverlayDrawableDpad(res, defaultStateBitmap,
                     pressedOneDirectionStateBitmap, pressedTwoDirectionsStateBitmap,
                     legacyId, upControl, downControl, leftControl, rightControl);
-
-    OverlayPosition position = layout.positionFor(legacyId);
-    if (position == null)
-      position = new OverlayPosition(0f, 0f);
-    int drawableX = Math.round(position.getNormalizedX() * layoutBounds.width);
-    int drawableY = Math.round(position.getNormalizedY() * layoutBounds.height);
+    overlayDrawable.setScaleAtEditStart(position.getScale());
 
     int width = overlayDrawable.getWidth();
     int height = overlayDrawable.getHeight();
+
+    int centerX = Math.round(position.getNormalizedX() * layoutBounds.width);
+    int centerY = Math.round(position.getNormalizedY() * layoutBounds.height);
+    int drawableX = centerX - width / 2;
+    int drawableY = centerY - height / 2;
 
     // Now set the bounds for the InputOverlayDrawableDpad.
     // This will dictate where on the screen (and the what the size) the InputOverlayDrawableDpad will be.
@@ -839,31 +996,38 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
     float scale = 0.275f;
     scale *= globalScale;
 
+    OverlayPosition position = layout.positionFor(legacyId);
+    if (position == null)
+      position = new OverlayPosition(0f, 0f);
+    scale *= position.getScale();
+
     // Initialize the InputOverlayDrawableJoystick.
     final Bitmap bitmapOuter =
             resizeBitmap(context, BitmapFactory.decodeResource(res, resOuter), scale);
     final Bitmap bitmapInnerDefault = BitmapFactory.decodeResource(res, defaultResInner);
     final Bitmap bitmapInnerPressed = BitmapFactory.decodeResource(res, pressedResInner);
 
-    OverlayPosition position = layout.positionFor(legacyId);
-    if (position == null)
-      position = new OverlayPosition(0f, 0f);
-    int drawableX = Math.round(position.getNormalizedX() * layoutBounds.width);
-    int drawableY = Math.round(position.getNormalizedY() * layoutBounds.height);
+    int width = bitmapOuter.getWidth();
+    int height = bitmapOuter.getHeight();
+
+    int centerX = Math.round(position.getNormalizedX() * layoutBounds.width);
+    int centerY = Math.round(position.getNormalizedY() * layoutBounds.height);
+    int drawableX = centerX - width / 2;
+    int drawableY = centerY - height / 2;
 
     // Decide inner scale based on joystick ID
     float innerScale = 1.375f;
 
     // Now set the bounds for the InputOverlayDrawableJoystick.
     // This will dictate where on the screen (and the what the size) the InputOverlayDrawableJoystick will be.
-    int outerSize = bitmapOuter.getWidth();
-    Rect outerRect = new Rect(drawableX, drawableY, drawableX + outerSize, drawableY + outerSize);
-    Rect innerRect = new Rect(0, 0, (int) (outerSize / innerScale), (int) (outerSize / innerScale));
+    Rect outerRect = new Rect(drawableX, drawableY, drawableX + width, drawableY + height);
+    Rect innerRect = new Rect(0, 0, (int) (width / innerScale), (int) (height / innerScale));
 
     // Send the drawableId to the joystick so it can be referenced when saving control position.
     final InputOverlayDrawableJoystick overlayDrawable =
             new InputOverlayDrawableJoystick(res, bitmapOuter, bitmapInnerDefault,
                     bitmapInnerPressed, outerRect, innerRect, legacyId, xControl, yControl);
+    overlayDrawable.setScaleAtEditStart(position.getScale());
 
     // Need to set the image's position
     overlayDrawable.setPosition(drawableX, drawableY);
@@ -872,8 +1036,70 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
     return overlayDrawable;
   }
 
+  private static InputOverlayDrawableTatacon initializeOverlayTatacon(Context context,
+          int drawableResId, int legacyId,
+          int upControl, int downControl, int circleControl, int crossControl,
+          int rimLeftControl, int rimRightControl,
+          OverlayLayout layout, LayoutBounds layoutBounds, float globalScale, int globalOpacity)
+  {
+    final Resources res = context.getResources();
+
+    float scale = 4.0f;
+    // scale *= globalScale; // tatacon don,t need this
+
+    OverlayPosition position = layout.positionFor(legacyId);
+    if (position == null)
+      position = new OverlayPosition(1f, 1f);
+    scale *= position.getScale();
+
+    final Bitmap baseBitmap =
+            resizeBitmap(context, BitmapFactory.decodeResource(res, drawableResId), scale);
+
+    final InputOverlayDrawableTatacon overlayDrawable =
+            new InputOverlayDrawableTatacon(res, baseBitmap, legacyId,
+                    upControl, downControl, circleControl, crossControl,
+                    rimLeftControl, rimRightControl);
+    overlayDrawable.setScaleAtEditStart(position.getScale());
+
+    int width = overlayDrawable.getWidth();
+    int height = overlayDrawable.getHeight();
+
+    // 중심 기준 normalized 좌표를 불러와 현재 LayoutBounds 기준으로 좌상단을 복원.
+    // 저장 시와 동일한 의미론(중심 분수)이라 크기/배율/화면 회전으로 레이아웃 크기가
+    // 바뀌어도 시각 중심이 유지된다.
+    int centerX = Math.round(position.getNormalizedX() * layoutBounds.width);
+    int centerY = Math.round(position.getNormalizedY() * layoutBounds.height);
+    int drawableX = centerX - width / 2;
+    int drawableY = centerY - height / 2;
+
+    android.util.Log.d("TataconDebug", "LOAD normX=" + position.getNormalizedX() + " normY=" + position.getNormalizedY()
+            + " layoutW=" + layoutBounds.width + " layoutH=" + layoutBounds.height
+            + " centerX=" + centerX + " centerY=" + centerY
+            + " finalX=" + drawableX + " finalY=" + drawableY
+            + " width=" + width + " height=" + height);
+
+    overlayDrawable.setBounds(drawableX, drawableY, drawableX + width, drawableY + height);
+    overlayDrawable.setPosition(drawableX, drawableY);
+    overlayDrawable.setOpacity((int) (globalOpacity * 0.01 * 255));
+
+    return overlayDrawable;
+  }
+
+  public void setEditMode(EditMode mode)
+  {
+    mEditMode = mode;
+  }
+
+  public EditMode getEditMode()
+  {
+    return mEditMode;
+  }
+
   public void setIsInEditMode(boolean isInEditMode)
   {
+    if (isInEditMode && !mIsInEditMode)
+      mEditMode = EditMode.MOVE;
+
     mIsInEditMode = isInEditMode;
     if (mIsInEditMode) {
       mHideOverlayButtons = false;
@@ -891,6 +1117,9 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
         return true;
     for (InputOverlayDrawableJoystick joystick : overlayJoysticks)
       if (joystick.getTrackId() == pointerId)
+        return true;
+    for (InputOverlayDrawableTatacon tatacon : overlayTatacons)
+      if (tatacon.getTrackId() == pointerId)
         return true;
     return false;
   }
@@ -971,7 +1200,16 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
   public native void setTouchState(int mode); // 0 = front, 1 = back, 2 = front + back mirrored
 
   private LayoutBounds resolveLayoutBounds() {
-    return resolveLayoutBounds(getWidth(), getHeight(), getContext());
+    int w = getWidth();
+    int h = getHeight();
+    // 优先用当前 SurfaceView 实时尺寸，避免退出重进后沿用旧缓存导致归一化坐标乘错基数。
+    if (w > 0 && h > 0) {
+      return new LayoutBounds(w, h);
+    }
+    if (mStableWidth > 0 && mStableHeight > 0) {
+      return new LayoutBounds(mStableWidth, mStableHeight);
+    }
+    return resolveLayoutBounds(w, h, getContext());
   }
 
   private static LayoutBounds resolveLayoutBounds(int width, int height, Context context) {
@@ -1002,6 +1240,7 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
     OverlayState resolvedState = state != null ? state : OverlayStore.defaultState(getContext());
     OverlayLayout normalizedLayout = resolvedState.getLayout().normalized();
     OverlayConfig normalizedConfig = resolvedState.getConfig().normalized();
+	mOverlayConfig = normalizedConfig;
     float resolvedScale = normalizedConfig.getOverlayScale() / 100f;
     int resolvedOpacity = normalizedConfig.getOverlayOpacity();
     boolean changed = !normalizedLayout.equals(mLayout)
@@ -1046,6 +1285,7 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
     public static final int TRIGGER_R3 = 25;
     public static final int BUTTON_TOUCH_HIDE = 1023;
     public static final int BUTTON_TOUCH_SWITCH = 1024;
+	public static final int TATACON = 30;
   }
 
   // SDL values

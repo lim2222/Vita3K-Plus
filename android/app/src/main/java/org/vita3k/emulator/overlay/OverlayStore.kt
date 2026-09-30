@@ -7,9 +7,10 @@ import android.os.Build
 import android.util.DisplayMetrics
 import org.vita3k.emulator.R
 
-data class OverlayPosition(
+data class OverlayPosition @JvmOverloads constructor(
     val normalizedX: Float,
-    val normalizedY: Float
+    val normalizedY: Float,
+    val scale: Float = 1.0f
 )
 
 object OverlayStore {
@@ -19,6 +20,7 @@ object OverlayStore {
     private const val GAME_SCOPE_PREFIX = "game:"
     private const val KEY_OVERRIDE_ENABLED = "override_enabled"
     private const val KEY_OVERLAY_MASK = "overlay_mask"
+	private const val KEY_VISIBLE_BUTTONS = "visible_buttons"
     private const val KEY_OVERLAY_SCALE = "overlay_scale"
     private const val KEY_OVERLAY_OPACITY = "overlay_opacity"
     private const val KEY_HIDE_ON_CONTROLLER = "hide_overlay_on_controller"
@@ -26,6 +28,7 @@ object OverlayStore {
     private const val KEY_LAYOUT_PREFIX = "layout"
     private const val KEY_POSITION_X_SUFFIX = ":x"
     private const val KEY_POSITION_Y_SUFFIX = ":y"
+	private const val KEY_POSITION_SCALE_SUFFIX = ":scale"
 
     private data class OverlayPositionDefaults(
         val buttonType: Int,
@@ -51,7 +54,8 @@ object OverlayStore {
         OverlayPositionDefaults(InputOverlay.ButtonType.TRIGGER_L3, R.integer.TRIGGER_L3_X, R.integer.TRIGGER_L3_Y),
         OverlayPositionDefaults(InputOverlay.ButtonType.TRIGGER_R3, R.integer.TRIGGER_R3_X, R.integer.TRIGGER_R3_Y),
         OverlayPositionDefaults(InputOverlay.ButtonType.BUTTON_TOUCH_HIDE, R.integer.BUTTON_TOUCH_HIDE_X, R.integer.BUTTON_TOUCH_HIDE_Y),
-        OverlayPositionDefaults(InputOverlay.ButtonType.BUTTON_TOUCH_SWITCH, R.integer.BUTTON_TOUCH_SWITCH_X, R.integer.BUTTON_TOUCH_SWITCH_Y)
+        OverlayPositionDefaults(InputOverlay.ButtonType.BUTTON_TOUCH_SWITCH, R.integer.BUTTON_TOUCH_SWITCH_X, R.integer.BUTTON_TOUCH_SWITCH_Y),
+		OverlayPositionDefaults(InputOverlay.ButtonType.TATACON, R.integer.BUTTON_TATACON_X, R.integer.BUTTON_TATACON_Y)
     )
 
     @JvmStatic
@@ -193,7 +197,12 @@ object OverlayStore {
         )
     }
 
-    private fun saveScopeState(context: Context, scopeId: String?, state: OverlayState, markOverride: Boolean) {
+    private fun saveScopeState(
+        context: Context,
+        scopeId: String?,
+        state: OverlayState,
+        markOverride: Boolean
+    ) {
         val normalizedScopeId = normalizeScopeId(scopeId)
         val normalizedState = OverlayState(
             config = state.config.normalized(),
@@ -201,9 +210,22 @@ object OverlayStore {
         )
 
         preferences(context).edit().apply {
-            putInt(configKey(normalizedScopeId, KEY_OVERLAY_MASK), normalizedState.config.overlayMask)
-            putInt(configKey(normalizedScopeId, KEY_OVERLAY_SCALE), normalizedState.config.overlayScale)
-            putInt(configKey(normalizedScopeId, KEY_OVERLAY_OPACITY), normalizedState.config.overlayOpacity)
+            putInt(
+                configKey(normalizedScopeId, KEY_OVERLAY_MASK),
+                normalizedState.config.overlayMask
+            )
+            putLong(
+                configKey(normalizedScopeId, KEY_VISIBLE_BUTTONS),
+                normalizedState.config.visibleButtons
+            )
+            putInt(
+                configKey(normalizedScopeId, KEY_OVERLAY_SCALE),
+                normalizedState.config.overlayScale
+            )
+            putInt(
+                configKey(normalizedScopeId, KEY_OVERLAY_OPACITY),
+                normalizedState.config.overlayOpacity
+            )
             putBoolean(
                 configKey(normalizedScopeId, KEY_HIDE_ON_CONTROLLER),
                 normalizedState.config.hideOverlayWhenControllerConnected
@@ -221,21 +243,82 @@ object OverlayStore {
         scopeId: String,
         fallback: OverlayConfig
     ): OverlayConfig {
-        val keys = listOf(
-            configKey(scopeId, KEY_OVERLAY_MASK),
-            configKey(scopeId, KEY_OVERLAY_SCALE),
-            configKey(scopeId, KEY_OVERLAY_OPACITY),
-            configKey(scopeId, KEY_HIDE_ON_CONTROLLER)
-        )
-        if (!keys.all(prefs::contains)) {
+        val maskKey = configKey(scopeId, KEY_OVERLAY_MASK)
+        val visibleButtonsKey = configKey(scopeId, KEY_VISIBLE_BUTTONS)
+        val scaleKey = configKey(scopeId, KEY_OVERLAY_SCALE)
+        val opacityKey = configKey(scopeId, KEY_OVERLAY_OPACITY)
+        val hideOnControllerKey = configKey(scopeId, KEY_HIDE_ON_CONTROLLER)
+
+        if (!prefs.contains(maskKey) && !prefs.contains(visibleButtonsKey)) {
+            // 什么都没存过，用默认值
             return fallback
         }
+
+        val overlayMask = prefs.getInt(maskKey, fallback.overlayMask)
+        val visibleButtons = if (prefs.contains(visibleButtonsKey)) {
+            prefs.getLong(visibleButtonsKey, fallback.visibleButtons)
+        } else {
+            // 新字段还没存过（老存档），从旧的分组掩码迁移一次
+            migrateLegacyMask(overlayMask)
+        }
+
         return OverlayConfig(
-            overlayMask = prefs.getInt(keys[0], fallback.overlayMask),
-            overlayScale = prefs.getInt(keys[1], fallback.overlayScale),
-            overlayOpacity = prefs.getInt(keys[2], fallback.overlayOpacity),
-            hideOverlayWhenControllerConnected = prefs.getBoolean(keys[3], fallback.hideOverlayWhenControllerConnected)
+            overlayMask = overlayMask,
+            visibleButtons = visibleButtons,
+            overlayScale = prefs.getInt(scaleKey, fallback.overlayScale),
+            overlayOpacity = prefs.getInt(opacityKey, fallback.overlayOpacity),
+            hideOverlayWhenControllerConnected = prefs.getBoolean(
+                hideOnControllerKey,
+                fallback.hideOverlayWhenControllerConnected
+            )
         ).normalized()
+    }
+
+    // 把旧的"组"掩码展开成新的"每个按钮独立"掩码
+    private fun migrateLegacyMask(legacyMask: Int): Long {
+        if (legacyMask == 0) return 0L
+
+        var result = 0L
+        val basicOn = legacyMask and InputOverlay.OVERLAY_MASK_BASIC != 0
+        val l2r2On = legacyMask and InputOverlay.OVERLAY_MASK_L2R2 != 0
+        val l3r3On = legacyMask and InputOverlay.OVERLAY_MASK_L3R3 != 0
+        val touchSwitchOn = legacyMask and InputOverlay.OVERLAY_MASK_TOUCH_SCREEN_SWITCH != 0
+        val hideToggleOn = legacyMask and InputOverlay.OVERLAY_MASK_HIDE_TOGGLE != 0
+
+        if (basicOn) {
+            // BASIC 组里包含的所有按钮
+            listOf(
+                InputOverlay.ButtonType.BUTTON_CROSS,
+                InputOverlay.ButtonType.BUTTON_CIRCLE,
+                InputOverlay.ButtonType.BUTTON_SQUARE,
+                InputOverlay.ButtonType.BUTTON_TRIANGLE,
+                InputOverlay.ButtonType.BUTTON_SELECT,
+                InputOverlay.ButtonType.BUTTON_START,
+                InputOverlay.ButtonType.BUTTON_PS,
+                InputOverlay.ButtonType.DPAD_UP,
+                InputOverlay.ButtonType.STICK_LEFT,
+                InputOverlay.ButtonType.STICK_RIGHT,
+                InputOverlay.ButtonType.TRIGGER_L,
+                InputOverlay.ButtonType.TRIGGER_R
+            ).forEach { result = result or OverlayButtonRegistry.bitFor(it) }
+        }
+        if (l2r2On) {
+            result = result or OverlayButtonRegistry.bitFor(InputOverlay.ButtonType.TRIGGER_L2)
+            result = result or OverlayButtonRegistry.bitFor(InputOverlay.ButtonType.TRIGGER_R2)
+        }
+        if (l3r3On) {
+            result = result or OverlayButtonRegistry.bitFor(InputOverlay.ButtonType.TRIGGER_L3)
+            result = result or OverlayButtonRegistry.bitFor(InputOverlay.ButtonType.TRIGGER_R3)
+        }
+        if (touchSwitchOn) {
+            result =
+                result or OverlayButtonRegistry.bitFor(InputOverlay.ButtonType.BUTTON_TOUCH_SWITCH)
+        }
+        if (hideToggleOn) {
+            result =
+                result or OverlayButtonRegistry.bitFor(InputOverlay.ButtonType.BUTTON_TOUCH_HIDE)
+        }
+        return result
     }
 
     private fun loadStoredLayout(
@@ -245,7 +328,7 @@ object OverlayStore {
     ): OverlayLayout {
         val anyEntryPresent = defaultEntries.any { entry ->
             prefs.contains(positionKey(scopeId, entry.buttonType, KEY_POSITION_X_SUFFIX)) &&
-                prefs.contains(positionKey(scopeId, entry.buttonType, KEY_POSITION_Y_SUFFIX))
+                    prefs.contains(positionKey(scopeId, entry.buttonType, KEY_POSITION_Y_SUFFIX))
         }
         if (!anyEntryPresent) {
             return fallback
@@ -261,7 +344,11 @@ object OverlayStore {
                 normalizedY = prefs.getFloat(
                     positionKey(scopeId, entry.buttonType, KEY_POSITION_Y_SUFFIX),
                     fallbackPosition.normalizedY
-                ).coerceNormalizedCoordinate()
+                ).coerceNormalizedCoordinate(),
+				scale = prefs.getFloat(
+					positionKey(scopeId, entry.buttonType, KEY_POSITION_SCALE_SUFFIX),
+					fallbackPosition.scale
+				).coerceIn(0.5f, 2.5f)
             )
         }
         return OverlayLayout(positions).normalized()
@@ -269,12 +356,24 @@ object OverlayStore {
 
     private fun legacyGlobalState(context: Context): OverlayState {
         val defaultState = defaultState(context)
-        val legacyConfigPrefs = context.applicationContext.getSharedPreferences("emulation_session", Context.MODE_PRIVATE)
+        val legacyConfigPrefs = context.applicationContext.getSharedPreferences(
+            "emulation_session",
+            Context.MODE_PRIVATE
+        )
         val config = if (legacyConfigPrefs.contains(KEY_OVERLAY_MASK)) {
+            val legacyMask =
+                legacyConfigPrefs.getInt(KEY_OVERLAY_MASK, defaultState.config.overlayMask)
             OverlayConfig(
-                overlayMask = legacyConfigPrefs.getInt(KEY_OVERLAY_MASK, defaultState.config.overlayMask),
-                overlayScale = legacyConfigPrefs.getInt(KEY_OVERLAY_SCALE, defaultState.config.overlayScale),
-                overlayOpacity = legacyConfigPrefs.getInt(KEY_OVERLAY_OPACITY, defaultState.config.overlayOpacity),
+                overlayMask = legacyMask,
+                visibleButtons = migrateLegacyMask(legacyMask),
+                overlayScale = legacyConfigPrefs.getInt(
+                    KEY_OVERLAY_SCALE,
+                    defaultState.config.overlayScale
+                ),
+                overlayOpacity = legacyConfigPrefs.getInt(
+                    KEY_OVERLAY_OPACITY,
+                    defaultState.config.overlayOpacity
+                ),
                 hideOverlayWhenControllerConnected = legacyConfigPrefs.getBoolean(
                     KEY_HIDE_ON_CONTROLLER,
                     defaultState.config.hideOverlayWhenControllerConnected
@@ -323,6 +422,7 @@ object OverlayStore {
             val position = layout.positionFor(entry.buttonType) ?: OverlayPosition(0f, 0f)
             editor.putFloat(positionKey(scopeId, entry.buttonType, KEY_POSITION_X_SUFFIX), position.normalizedX)
             editor.putFloat(positionKey(scopeId, entry.buttonType, KEY_POSITION_Y_SUFFIX), position.normalizedY)
+			editor.putFloat(positionKey(scopeId, entry.buttonType, KEY_POSITION_SCALE_SUFFIX), position.scale)
             editor.remove(scopePrefix(scopeId) + ":" + KEY_LAYOUT_PREFIX + ":portrait:" + entry.buttonType + KEY_POSITION_X_SUFFIX)
             editor.remove(scopePrefix(scopeId) + ":" + KEY_LAYOUT_PREFIX + ":portrait:" + entry.buttonType + KEY_POSITION_Y_SUFFIX)
         }
@@ -330,12 +430,14 @@ object OverlayStore {
 
     private fun removeScopePayload(editor: SharedPreferences.Editor, scopeId: String) {
         editor.remove(configKey(scopeId, KEY_OVERLAY_MASK))
+		editor.remove(configKey(scopeId, KEY_VISIBLE_BUTTONS))
         editor.remove(configKey(scopeId, KEY_OVERLAY_SCALE))
         editor.remove(configKey(scopeId, KEY_OVERLAY_OPACITY))
         editor.remove(configKey(scopeId, KEY_HIDE_ON_CONTROLLER))
         defaultEntries.forEach { entry ->
             editor.remove(positionKey(scopeId, entry.buttonType, KEY_POSITION_X_SUFFIX))
             editor.remove(positionKey(scopeId, entry.buttonType, KEY_POSITION_Y_SUFFIX))
+			editor.remove(positionKey(scopeId, entry.buttonType, KEY_POSITION_SCALE_SUFFIX))
             editor.remove(scopePrefix(scopeId) + ":" + KEY_LAYOUT_PREFIX + ":portrait:" + entry.buttonType + KEY_POSITION_X_SUFFIX)
             editor.remove(scopePrefix(scopeId) + ":" + KEY_LAYOUT_PREFIX + ":portrait:" + entry.buttonType + KEY_POSITION_Y_SUFFIX)
         }

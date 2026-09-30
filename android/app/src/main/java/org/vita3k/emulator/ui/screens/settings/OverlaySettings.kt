@@ -20,6 +20,31 @@ import org.vita3k.emulator.ConnectedGamepad
 import org.vita3k.emulator.R
 import org.vita3k.emulator.data.EmulatorConfig
 import org.vita3k.emulator.overlay.OverlayConfig
+import org.vita3k.emulator.overlay.InputOverlay
+import org.vita3k.emulator.overlay.OverlayButtonRegistry
+
+private fun officialButtonName(legacyId: Int): String = when (legacyId) {
+    InputOverlay.ButtonType.BUTTON_CROSS -> "Cross"
+    InputOverlay.ButtonType.BUTTON_CIRCLE -> "Circle"
+    InputOverlay.ButtonType.BUTTON_SQUARE -> "Square"
+    InputOverlay.ButtonType.BUTTON_TRIANGLE -> "Triangle"
+    InputOverlay.ButtonType.BUTTON_SELECT -> "Select"
+    InputOverlay.ButtonType.BUTTON_START -> "Start"
+    InputOverlay.ButtonType.BUTTON_PS -> "PS Button"
+    InputOverlay.ButtonType.DPAD_UP -> "D-pad"
+    InputOverlay.ButtonType.STICK_LEFT -> "Left Stick"
+    InputOverlay.ButtonType.STICK_RIGHT -> "Right Stick"
+    InputOverlay.ButtonType.TRIGGER_L -> "L1"
+    InputOverlay.ButtonType.TRIGGER_R -> "R1"
+    InputOverlay.ButtonType.TRIGGER_L2 -> "L2"
+    InputOverlay.ButtonType.TRIGGER_R2 -> "R2"
+    InputOverlay.ButtonType.TRIGGER_L3 -> "L3"
+    InputOverlay.ButtonType.TRIGGER_R3 -> "R3"
+    InputOverlay.ButtonType.BUTTON_TOUCH_SWITCH -> "Touch Switch"
+    InputOverlay.ButtonType.BUTTON_TOUCH_HIDE -> "Hide Toggle"
+	InputOverlay.ButtonType.TATACON -> "Taiko Drum"
+    else -> "Button $legacyId"
+}
 
 @Composable
 internal fun OverlaySettingsSection(
@@ -113,6 +138,17 @@ internal fun OverlaySettingsRows(
             ),
             onShowHelp = onShowHelp
         )
+
+        OverlayButtonRegistry.ids.forEach { id ->
+            SettingsToggleRow(
+                title = officialButtonName(id),
+                checked = overlayConfig.isButtonVisible(id),
+                onCheckedChange = { onOverlayConfigChange(overlayConfig.withButtonVisible(id, it)) },
+                enabled = overlayConfig.controlsVisible,
+                onShowHelp = onShowHelp
+            )
+        }
+
         SettingsToggleRow(
             title = stringResource(R.string.settings_controls_hide_on_controller),
             checked = overlayConfig.hideOverlayWhenControllerConnected,

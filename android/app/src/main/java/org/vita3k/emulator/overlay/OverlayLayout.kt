@@ -5,12 +5,13 @@ data class OverlayLayout(
 ) {
     fun positionFor(buttonType: Int): OverlayPosition? = positions[buttonType]
 
-    fun withPosition(buttonType: Int, normalizedX: Float, normalizedY: Float): OverlayLayout =
+    fun withPosition(buttonType: Int, normalizedX: Float, normalizedY: Float, scale: Float = 1.0f): OverlayLayout =
         copy(
             positions = positions + (
                 buttonType to OverlayPosition(
                     normalizedX = normalizedX.coerceNormalizedCoordinate(),
-                    normalizedY = normalizedY.coerceNormalizedCoordinate()
+                    normalizedY = normalizedY.coerceNormalizedCoordinate(),
+                    scale = scale.coerceIn(0.2f, 20.0f)
                 )
             )
         )
@@ -20,7 +21,8 @@ data class OverlayLayout(
             positions = positions.mapValues { (_, position) ->
                 OverlayPosition(
                     normalizedX = position.normalizedX.coerceNormalizedCoordinate(),
-                    normalizedY = position.normalizedY.coerceNormalizedCoordinate()
+                    normalizedY = position.normalizedY.coerceNormalizedCoordinate(),
+                    scale = position.scale.coerceIn(0.2f, 20.0f)
                 )
             }
         )

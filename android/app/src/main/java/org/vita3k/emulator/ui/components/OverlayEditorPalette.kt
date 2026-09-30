@@ -4,6 +4,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -36,12 +37,15 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import org.vita3k.emulator.R
+import org.vita3k.emulator.overlay.InputOverlay
 import kotlin.math.roundToInt
 
 @Composable
 internal fun OverlayEditorPalette(
     onDone: () -> Unit,
     onReset: () -> Unit,
+    editMode: InputOverlay.EditMode,
+    onEditModeChange: (InputOverlay.EditMode) -> Unit,
     modifier: Modifier = Modifier
 ) {
     BoxWithConstraints(
@@ -58,7 +62,7 @@ internal fun OverlayEditorPalette(
             modifier = Modifier
                 .align(Alignment.Center)
                 .offset { IntOffset(offsetX, offsetY) }
-                .widthIn(min = 220.dp, max = 280.dp)
+                .widthIn(min = 220.dp, max = 320.dp)
                 .onSizeChanged { panelSize = it }
                 .pointerInput(maxOffsetX, maxOffsetY) {
                     detectDragGestures { change, dragAmount ->
@@ -73,31 +77,62 @@ internal fun OverlayEditorPalette(
             color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(12.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            Column(
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                OutlinedButton(
-                    onClick = onReset,
-                    modifier = Modifier.weight(1f)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Icon(Icons.Default.Restore, contentDescription = null)
-                    Text(
-                        text = stringResource(R.string.action_reset),
-                        modifier = Modifier.padding(start = 6.dp)
-                    )
+                    if (editMode == InputOverlay.EditMode.MOVE) {
+                        FilledTonalButton(
+                            onClick = { onEditModeChange(InputOverlay.EditMode.MOVE) },
+                            modifier = Modifier.weight(1f)
+                        ) { Text("Move") }
+                    } else {
+                        OutlinedButton(
+                            onClick = { onEditModeChange(InputOverlay.EditMode.MOVE) },
+                            modifier = Modifier.weight(1f)
+                        ) { Text("Move") }
+                    }
+
+                    if (editMode == InputOverlay.EditMode.RESIZE) {
+                        FilledTonalButton(
+                            onClick = { onEditModeChange(InputOverlay.EditMode.RESIZE) },
+                            modifier = Modifier.weight(1f)
+                        ) { Text("Resize") }
+                    } else {
+                        OutlinedButton(
+                            onClick = { onEditModeChange(InputOverlay.EditMode.RESIZE) },
+                            modifier = Modifier.weight(1f)
+                        ) { Text("Resize") }
+                    }
                 }
-                FilledTonalButton(
-                    onClick = onDone,
-                    modifier = Modifier.weight(1f)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Icon(Icons.Default.Done, contentDescription = null)
-                    Text(
-                        text = stringResource(R.string.action_done),
-                        modifier = Modifier.padding(start = 6.dp)
-                    )
+                    OutlinedButton(
+                        onClick = onReset,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Default.Restore, contentDescription = null)
+                        Text(
+                            text = stringResource(R.string.action_reset),
+                            modifier = Modifier.padding(start = 6.dp)
+                        )
+                    }
+                    FilledTonalButton(
+                        onClick = onDone,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Default.Done, contentDescription = null)
+                        Text(
+                            text = stringResource(R.string.action_done),
+                            modifier = Modifier.padding(start = 6.dp)
+                        )
+                    }
                 }
             }
         }
