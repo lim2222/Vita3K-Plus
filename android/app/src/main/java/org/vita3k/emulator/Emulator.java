@@ -466,6 +466,13 @@ public class Emulator extends SDLActivity
             overlay.setOpacity(opacity);
     }
 
+    @Keep
+    public void setControllerOverlayAllowVirtualController(boolean allow){
+        InputOverlay overlay = getmOverlay();
+        if (overlay != null)
+            overlay.setAllowVirtualController(allow);
+    }
+
     public void releaseControllerOverlayInputs() {
         InputOverlay overlay = getmOverlay();
         if (overlay != null)

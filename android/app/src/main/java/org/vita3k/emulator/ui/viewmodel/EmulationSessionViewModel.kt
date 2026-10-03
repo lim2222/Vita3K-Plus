@@ -10,9 +10,11 @@ import org.vita3k.emulator.NativeLib
 import org.vita3k.emulator.data.NativeImeState
 import org.vita3k.emulator.overlay.DEFAULT_OVERLAY_MASK
 import org.vita3k.emulator.overlay.OverlayConfig
+import org.vita3k.emulator.overlay.OverlayLayout
 import org.vita3k.emulator.overlay.OverlayState
 import org.vita3k.emulator.overlay.OverlayStore
 import org.vita3k.emulator.overlay.OverlayButtonRegistry
+import org.vita3k.emulator.overlay.InputOverlay
 
 data class EmulationSessionUiState(
     val titleId: String = "",
@@ -32,8 +34,10 @@ data class EmulationSessionUiState(
     val overlayScale: Int = 100,
     val overlayOpacity: Int = 100,
     val hideOverlayWhenControllerConnected: Boolean = true,
+    val hapticAmplitude: Int = 255,
     val controllerConnected: Boolean = false,
-    val statusMessage: String? = null
+    val statusMessage: String? = null,
+    val overlayLayout: OverlayLayout = OverlayLayout()
 )
 
 class EmulationSessionViewModel(application: Application) : AndroidViewModel(application) {
@@ -58,10 +62,24 @@ class EmulationSessionViewModel(application: Application) : AndroidViewModel(app
             .withOverlayConfig(resolved.second.config)
             .copy(
                 titleId = resolvedTitleId,
-                gameTitle = gameTitle.orEmpty()
+                gameTitle = gameTitle.orEmpty(),
+                overlayLayout = resolved.second.layout
             )
         useGameOverlayOverride = resolved.first
         initialized = true
+
+        // Clear previous listener and register new one for overlay config changes from Settings screen
+        OverlayStore.removeOnGameOverlayChangedListener(overlayChangeListener)
+        if (resolvedTitleId.isNotBlank()) {
+            OverlayStore.addOnGameOverlayChangedListener(overlayChangeListener)
+        }
+    }
+
+    // Listener for overlay config changes from Settings screen
+    private val overlayChangeListener = { scopeId: String ->
+        if (scopeId == uiState.titleId) {
+            reloadOverlayConfig()
+        }
     }
 
     fun updateRunningApp(titleId: String?, gameTitle: String?) {
@@ -71,15 +89,36 @@ class EmulationSessionViewModel(application: Application) : AndroidViewModel(app
             .withOverlayConfig(resolved.second.config)
             .copy(
                 titleId = resolvedTitleId,
-                gameTitle = gameTitle.orEmpty()
+                gameTitle = gameTitle.orEmpty(),
+                overlayLayout = resolved.second.layout
             )
         useGameOverlayOverride = resolved.first
         initialized = true
+
+        // Register listener for overlay config changes from Settings screen
+        OverlayStore.removeOnGameOverlayChangedListener(overlayChangeListener)
+        if (resolvedTitleId.isNotBlank()) {
+            OverlayStore.addOnGameOverlayChangedListener(overlayChangeListener)
+        }
+    }
+
+    private fun reloadOverlayConfig() {
+        val resolvedTitleId = uiState.titleId
+        if (resolvedTitleId.isBlank()) return
+
+        val resolved = resolveOverlayState(resolvedTitleId)
+        uiState = uiState
+            .withOverlayConfig(resolved.second.config)
+            .copy(overlayLayout = resolved.second.layout)
+        // Apply the new config/layout to the running overlay immediately
+        // Note: The emulator reference is not available here, but the next time
+        // applyOverlayState is called (e.g., when menu opens/closes), it will use the new config
     }
 
     fun applyOverlayState(emulator: Emulator) {
         emulator.setControllerOverlayScale(uiState.overlayScale / 100f)
         emulator.setControllerOverlayOpacity(uiState.overlayOpacity)
+        emulator.setControllerOverlayLayout(uiState.overlayLayout)
         val visibleMask = when {
             uiState.showMenu -> 0
             uiState.isEditingControls -> activeOverlayMask()
@@ -87,7 +126,11 @@ class EmulationSessionViewModel(application: Application) : AndroidViewModel(app
             else -> uiState.overlayMask
         }
         emulator.setControllerOverlayState(visibleMask, uiState.isEditingControls, false)
-		emulator.setControllerOverlayConfig(currentOverlayConfig())
+        emulator.setControllerOverlayConfig(currentOverlayConfig())
+        if (uiState.isEditingControls) {
+            emulator.setControllerOverlayEditMode(InputOverlay.EditMode.MOVE)
+            emulator.setControllerOverlayAllowVirtualController(true)
+        }
     }
 
     fun handleBackPressed(emulator: Emulator): Boolean {
@@ -180,6 +223,8 @@ class EmulationSessionViewModel(application: Application) : AndroidViewModel(app
 
     fun confirmExit(emulator: Emulator) {
         releaseInputs(emulator)
+        // Clear overlay change listener
+        OverlayStore.removeOnGameOverlayChangedListener(overlayChangeListener)
         uiState = uiState.copy(showExitConfirmation = false, statusMessage = null)
         emulator.requestNativeQuit()
     }
@@ -286,7 +331,8 @@ class EmulationSessionViewModel(application: Application) : AndroidViewModel(app
 			visibleButtons = uiState.visibleButtons,
             overlayScale = uiState.overlayScale,
             overlayOpacity = uiState.overlayOpacity,
-            hideOverlayWhenControllerConnected = uiState.hideOverlayWhenControllerConnected
+            hideOverlayWhenControllerConnected = uiState.hideOverlayWhenControllerConnected,
+            hapticAmplitude = uiState.hapticAmplitude
         ).normalized()
     }
 
@@ -385,7 +431,8 @@ class EmulationSessionViewModel(application: Application) : AndroidViewModel(app
             hideToggleVisible = normalized.hideToggleVisible,
             overlayScale = normalized.overlayScale,
             overlayOpacity = normalized.overlayOpacity,
-            hideOverlayWhenControllerConnected = normalized.hideOverlayWhenControllerConnected
+            hideOverlayWhenControllerConnected = normalized.hideOverlayWhenControllerConnected,
+            hapticAmplitude = normalized.hapticAmplitude
         )
     }
 }

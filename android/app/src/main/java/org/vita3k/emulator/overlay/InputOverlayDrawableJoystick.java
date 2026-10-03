@@ -45,6 +45,7 @@ public final class InputOverlayDrawableJoystick
   private final BitmapDrawable mPressedStateInnerBitmap;
   private final BitmapDrawable mBoundsBoxBitmap;
   private boolean mPressedState = false;
+  private float mEditModeAlphaMultiplier = 1.0f;
 
   /**
    * Constructor
@@ -347,20 +348,26 @@ public final class InputOverlayDrawableJoystick
   public void setOpacity(int value)
   {
     mOpacity = value;
+    int adjustedValue = (int) (value * mEditModeAlphaMultiplier);
 
-    mDefaultStateInnerBitmap.setAlpha(value);
-    mPressedStateInnerBitmap.setAlpha(value);
+    mDefaultStateInnerBitmap.setAlpha(adjustedValue);
+    mPressedStateInnerBitmap.setAlpha(adjustedValue);
 
     if (trackId == -1)
     {
-      mOuterBitmap.setAlpha(value);
+      mOuterBitmap.setAlpha(adjustedValue);
       mBoundsBoxBitmap.setAlpha(0);
     }
     else
     {
       mOuterBitmap.setAlpha(0);
-      mBoundsBoxBitmap.setAlpha(value);
+      mBoundsBoxBitmap.setAlpha(adjustedValue);
     }
+  }
+
+  public void setEditModeAlphaMultiplier(float multiplier)
+  {
+    mEditModeAlphaMultiplier = multiplier;
   }
 
   public Rect getBounds()

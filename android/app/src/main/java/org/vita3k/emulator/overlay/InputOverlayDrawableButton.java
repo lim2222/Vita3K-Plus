@@ -37,6 +37,7 @@ public final class InputOverlayDrawableButton
   private boolean mPressedState = false;
   private int mTouchSwitchState = 0;  // 0 = front, 1 = back, 2 = front+back
   private int mRole = 0;
+  private float mEditModeAlphaMultiplier = 1.0f;
 
   /**
    * Constructor
@@ -209,10 +210,16 @@ private float mScaleAtEditStart = 1.0f;
 
   public void setOpacity(int value)
   {
-    mDefaultStateBitmap.setAlpha(value);
-    mPressedStateBitmap.setAlpha(value);
+    int adjustedValue = (int) (value * mEditModeAlphaMultiplier);
+    mDefaultStateBitmap.setAlpha(adjustedValue);
+    mPressedStateBitmap.setAlpha(adjustedValue);
     if (mThirdStateBitmap != null)
-      mThirdStateBitmap.setAlpha(value);
+      mThirdStateBitmap.setAlpha(adjustedValue);
+  }
+
+  public void setEditModeAlphaMultiplier(float multiplier)
+  {
+    mEditModeAlphaMultiplier = multiplier;
   }
 
   public Rect getBounds()

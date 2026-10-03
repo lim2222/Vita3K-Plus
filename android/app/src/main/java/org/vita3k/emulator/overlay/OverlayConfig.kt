@@ -6,11 +6,23 @@ val DEFAULT_OVERLAY_MASK: Int =
     InputOverlay.OVERLAY_MASK_BASIC or InputOverlay.OVERLAY_MASK_TOUCH_SCREEN_SWITCH
 
 data class OverlayConfig(
+    @JvmField
     val overlayMask: Int = DEFAULT_OVERLAY_MASK,
+
+    @JvmField
     val visibleButtons: Long = OverlayButtonRegistry.defaultMask(),
+
+    @JvmField
     val overlayScale: Int = 100,
+
+    @JvmField
     val overlayOpacity: Int = 100,
-    val hideOverlayWhenControllerConnected: Boolean = true
+
+    @JvmField
+    val hideOverlayWhenControllerConnected: Boolean = true,
+
+    @JvmField
+    val hapticAmplitude: Int = 255
 ) {
     val controlsVisible: Boolean
         get() = overlayMask != 0
@@ -40,7 +52,16 @@ data class OverlayConfig(
         } else {
             baseMask and InputOverlay.OVERLAY_MASK_L2R2.inv()
         }
-        return copy(overlayMask = updatedMask).normalized()
+        // 同步 visibleButtons: 开启组时自动开启 L2/R2 单独bit，关闭组时关闭它们
+        var updatedButtons = visibleButtons
+        val l2Bit = OverlayButtonRegistry.bitFor(InputOverlay.ButtonType.TRIGGER_L2)
+        val r2Bit = OverlayButtonRegistry.bitFor(InputOverlay.ButtonType.TRIGGER_R2)
+        if (visible) {
+            updatedButtons = updatedButtons or l2Bit or r2Bit
+        } else {
+            updatedButtons = updatedButtons and l2Bit.inv() and r2Bit.inv()
+        }
+        return copy(overlayMask = updatedMask, visibleButtons = updatedButtons).normalized()
     }
 
     fun withL3R3Visible(visible: Boolean): OverlayConfig {
@@ -50,7 +71,16 @@ data class OverlayConfig(
         } else {
             baseMask and InputOverlay.OVERLAY_MASK_L3R3.inv()
         }
-        return copy(overlayMask = updatedMask).normalized()
+        // 同步 visibleButtons: 开启组时自动开启 L3/R3 单独bit，关闭组时关闭它们
+        var updatedButtons = visibleButtons
+        val l3Bit = OverlayButtonRegistry.bitFor(InputOverlay.ButtonType.TRIGGER_L3)
+        val r3Bit = OverlayButtonRegistry.bitFor(InputOverlay.ButtonType.TRIGGER_R3)
+        if (visible) {
+            updatedButtons = updatedButtons or l3Bit or r3Bit
+        } else {
+            updatedButtons = updatedButtons and l3Bit.inv() and r3Bit.inv()
+        }
+        return copy(overlayMask = updatedMask, visibleButtons = updatedButtons).normalized()
     }
 
     fun withTouchSwitchVisible(visible: Boolean): OverlayConfig {

@@ -24,11 +24,29 @@ object OverlayStore {
     private const val KEY_OVERLAY_SCALE = "overlay_scale"
     private const val KEY_OVERLAY_OPACITY = "overlay_opacity"
     private const val KEY_HIDE_ON_CONTROLLER = "hide_overlay_on_controller"
+    private const val KEY_HAPTIC_AMPLITUDE = "haptic_amplitude"
     private const val KEY_CONFIG_PREFIX = "config"
     private const val KEY_LAYOUT_PREFIX = "layout"
     private const val KEY_POSITION_X_SUFFIX = ":x"
     private const val KEY_POSITION_Y_SUFFIX = ":y"
 	private const val KEY_POSITION_SCALE_SUFFIX = ":scale"
+
+    // Listeners for overlay config changes (e.g., to notify running game and settings screen)
+    private val onGameOverlayChangedListeners = mutableSetOf<(String) -> Unit>()
+
+    @JvmStatic
+    fun addOnGameOverlayChangedListener(listener: (String) -> Unit) {
+        onGameOverlayChangedListeners.add(listener)
+    }
+
+    @JvmStatic
+    fun removeOnGameOverlayChangedListener(listener: (String) -> Unit) {
+        onGameOverlayChangedListeners.remove(listener)
+    }
+
+    private fun notifyGameOverlayChanged(scopeId: String) {
+        onGameOverlayChangedListeners.forEach { it(scopeId) }
+    }
 
     private data class OverlayPositionDefaults(
         val buttonType: Int,
@@ -109,6 +127,7 @@ object OverlayStore {
             return
         }
         saveScopeState(context, normalizedScopeId, state, markOverride = true)
+        notifyGameOverlayChanged(normalizedScopeId)
     }
 
     @JvmStatic
@@ -123,6 +142,7 @@ object OverlayStore {
             removeScopePayload(this, normalizedScopeId)
             apply()
         }
+        notifyGameOverlayChanged(normalizedScopeId)
     }
 
     @JvmStatic
@@ -230,6 +250,10 @@ object OverlayStore {
                 configKey(normalizedScopeId, KEY_HIDE_ON_CONTROLLER),
                 normalizedState.config.hideOverlayWhenControllerConnected
             )
+            putInt(
+                configKey(normalizedScopeId, KEY_HAPTIC_AMPLITUDE),
+                normalizedState.config.hapticAmplitude
+            )
             saveLayoutEntries(this, normalizedScopeId, normalizedState.layout)
             if (markOverride && normalizedScopeId.isNotEmpty()) {
                 putBoolean(overrideEnabledKey(normalizedScopeId), true)
@@ -248,6 +272,7 @@ object OverlayStore {
         val scaleKey = configKey(scopeId, KEY_OVERLAY_SCALE)
         val opacityKey = configKey(scopeId, KEY_OVERLAY_OPACITY)
         val hideOnControllerKey = configKey(scopeId, KEY_HIDE_ON_CONTROLLER)
+        val hapticAmplitudeKey = configKey(scopeId, KEY_HAPTIC_AMPLITUDE)
 
         if (!prefs.contains(maskKey) && !prefs.contains(visibleButtonsKey)) {
             // 什么都没存过，用默认值
@@ -270,7 +295,8 @@ object OverlayStore {
             hideOverlayWhenControllerConnected = prefs.getBoolean(
                 hideOnControllerKey,
                 fallback.hideOverlayWhenControllerConnected
-            )
+            ),
+            hapticAmplitude = prefs.getInt(hapticAmplitudeKey, fallback.hapticAmplitude)
         ).normalized()
     }
 
@@ -299,7 +325,8 @@ object OverlayStore {
                 InputOverlay.ButtonType.STICK_LEFT,
                 InputOverlay.ButtonType.STICK_RIGHT,
                 InputOverlay.ButtonType.TRIGGER_L,
-                InputOverlay.ButtonType.TRIGGER_R
+                InputOverlay.ButtonType.TRIGGER_R,
+                InputOverlay.ButtonType.TATACON
             ).forEach { result = result or OverlayButtonRegistry.bitFor(it) }
         }
         if (l2r2On) {

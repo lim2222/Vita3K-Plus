@@ -36,6 +36,7 @@ public final class InputOverlayDrawableDpad
   private BitmapDrawable mPressedOneDirectionStateBitmap;
   private BitmapDrawable mPressedTwoDirectionsStateBitmap;
   private int mPressState = STATE_DEFAULT;
+  private float mEditModeAlphaMultiplier = 1.0f;
   
   public static final int STATE_DEFAULT = 0;
   public static final int STATE_PRESSED_UP = 1;
@@ -236,9 +237,15 @@ public final class InputOverlayDrawableDpad
 
   public void setOpacity(int value)
   {
-    mDefaultStateBitmap.setAlpha(value);
-    mPressedOneDirectionStateBitmap.setAlpha(value);
-    mPressedTwoDirectionsStateBitmap.setAlpha(value);
+    int adjustedValue = (int) (value * mEditModeAlphaMultiplier);
+    mDefaultStateBitmap.setAlpha(adjustedValue);
+    mPressedOneDirectionStateBitmap.setAlpha(adjustedValue);
+    mPressedTwoDirectionsStateBitmap.setAlpha(adjustedValue);
+  }
+
+  public void setEditModeAlphaMultiplier(float multiplier)
+  {
+    mEditModeAlphaMultiplier = multiplier;
   }
 
   public Rect getBounds()

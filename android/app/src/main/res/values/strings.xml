@@ -761,4 +761,10 @@
     <string name="settings_emulator_browse_files_unavailable">No document browser found on this device. Vita3K+ still appears as a storage location in the sidebar of the system file picker, and in file managers that support document providers.</string>
     <string name="documents_root_summary">Games, saves, config and logs</string>
     <string name="documents_storage_root_summary">Games and saves (custom storage folder)</string>
+
+    <!-- Haptic feedback -->
+    <string name="settings_controls_haptic">Haptic Feedback</string>
+    <string name="settings_controls_haptic_desc">Enable haptic vibration when pressing overlay buttons. Longer vibration provides stronger feedback.</string>
+    <string name="settings_controls_haptic_strength">Haptic Strength</string>
+    <string name="settings_controls_haptic_strength_desc">Set the vibration intensity (0 = off). Higher values produce stronger feedback.</string>
 </resources>

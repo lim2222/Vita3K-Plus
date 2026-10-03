@@ -36,6 +36,7 @@ public final class InputOverlayDrawableTatacon
   private BitmapDrawable mBaseBitmap;
   private int mActiveZone = ZONE_NONE;
   private int mOpacity = 255;
+  private float mEditModeAlphaMultiplier = 1.0f;
 
   public InputOverlayDrawableTatacon(Resources res, Bitmap baseBitmap, int legacyId,
           int upControl, int downControl, int circleControl, int crossControl,
@@ -217,7 +218,13 @@ public final class InputOverlayDrawableTatacon
   public void setOpacity(int value)
   {
     mOpacity = value;
-    mBaseBitmap.setAlpha(value);
+    int adjustedValue = (int) (value * mEditModeAlphaMultiplier);
+    mBaseBitmap.setAlpha(adjustedValue);
+  }
+
+  public void setEditModeAlphaMultiplier(float multiplier)
+  {
+    mEditModeAlphaMultiplier = multiplier;
   }
 
   public Rect getBounds() { return mBaseBitmap.getBounds(); }

@@ -820,7 +820,7 @@ private fun EmbeddedSettingsTab(
     val customSettingsLoaded = titleId.isNotBlank() && settingsViewModel.isLoaded(titleId)
     val globalSettingsLoaded = globalSettingsViewModel.isLoaded(titleId = null)
     val customCategories = remember {
-        settingsCategories(isPerApp = true).filter { it != SettingsCategory.Controls }
+        settingsCategories(isPerApp = true)
     }
     val globalCategories = remember {
         settingsCategories(isPerApp = false).filter { it != SettingsCategory.Controls }

@@ -20,6 +20,9 @@ import android.view.SurfaceView;
 import android.view.View;
 import android.view.View.OnTouchListener;
 
+import android.os.VibrationEffect;
+import android.os.Vibrator;
+
 import java.util.HashSet;
 import java.util.Set;
 
@@ -111,6 +114,14 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
 
     // Force draw
     setWillNotDraw(false);
+
+    // Register as touch listener to receive touch events
+    setOnTouchListener(this);
+
+    // Ensure the view can receive touch events and focus
+    setFocusable(true);
+    setFocusableInTouchMode(true);
+    setClickable(true);
 
     // Request focus for the overlay so it has priority on presses.
     requestFocus();
@@ -233,11 +244,15 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
     if (mOverlayMask == 0 || !mShowingOverlay)
       return;
 
+    boolean inEditMode = isInEditMode();
+
     for (InputOverlayDrawableButton button : overlayButtons)
     {
       int role = button.getRole();
 	  
-	  if (!mOverlayConfig.isButtonVisible(button.getLegacyId())) continue;
+	  boolean visible = mOverlayConfig.isButtonVisible(button.getLegacyId());
+	  // In edit mode, only show enabled buttons so user isn't confused by hidden ones
+	  if (!visible) continue;
 
       if (mHideOverlayButtons) {
         if ((role & OVERLAY_MASK_UTILITY) == 0 || (role & mOverlayMask) == 0)
@@ -246,6 +261,7 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
         continue;
       }
 
+      button.setEditModeAlphaMultiplier(1.0f);
       button.draw(canvas);
     }
 
@@ -253,20 +269,29 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
     {
       for (InputOverlayDrawableDpad dpad : overlayDpads)
       {
-        if (!mOverlayConfig.isButtonVisible(dpad.getLegacyId())) continue;
+        boolean visible = mOverlayConfig.isButtonVisible(dpad.getLegacyId());
+        if (!visible) continue;
+        
+        dpad.setEditModeAlphaMultiplier(1.0f);
         dpad.draw(canvas);
       }
 
       for (InputOverlayDrawableJoystick joystick : overlayJoysticks)
       {
-      if (!mOverlayConfig.isButtonVisible(joystick.getLegacyId())) continue;
+        boolean visible = mOverlayConfig.isButtonVisible(joystick.getLegacyId());
+        if (!visible) continue;
+        
+        joystick.setEditModeAlphaMultiplier(1.0f);
         joystick.draw(canvas);
       }
 	  
       for (InputOverlayDrawableTatacon tatacon : overlayTatacons)
       {
-      if (!mOverlayConfig.isButtonVisible(tatacon.getLegacyId())) continue;
-      tatacon.draw(canvas);
+        boolean visible = mOverlayConfig.isButtonVisible(tatacon.getLegacyId());
+        if (!visible) continue;
+        
+        tatacon.setEditModeAlphaMultiplier(1.0f);
+        tatacon.draw(canvas);
       }
     }
   }
@@ -326,6 +351,8 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
               mHideOverlayButtons = !mHideOverlayButtons;
             else
               setButton(button.getControl(), true);
+
+            triggerHapticFeedback();
           }
           break;
         case MotionEvent.ACTION_UP:
@@ -350,7 +377,7 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
     {
       for (InputOverlayDrawableDpad dpad : overlayDpads)
       {
-		if (!mOverlayConfig.isButtonVisible(dpad.getLegacyId())) continue;
+	if (!mOverlayConfig.isButtonVisible(dpad.getLegacyId())) continue;
 
         // Determine the button state to apply based on the MotionEvent action flag.
         switch (event.getAction() & MotionEvent.ACTION_MASK)
@@ -364,7 +391,9 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
               dpad.setTrackId(event.getPointerId(pointerIndex));
               concerned = true;
             }
-          case MotionEvent.ACTION_MOVE:
+          triggerHapticFeedback(); // DPad press —— vibrate on first touch
+
+        case MotionEvent.ACTION_MOVE:
             if (dpad.getTrackId() == event.getPointerId(pointerIndex))
             {
               concerned = true;
@@ -408,11 +437,12 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
 
       for (InputOverlayDrawableJoystick joystick : overlayJoysticks)
       {
-		if (!mOverlayConfig.isButtonVisible(joystick.getLegacyId())) continue;
+	if (!mOverlayConfig.isButtonVisible(joystick.getLegacyId())) continue;
 
         if (joystick.TrackEvent(event))
         {
           concerned = true;
+          triggerHapticFeedback(); // Joystick first touch
 
           int joyX = Math.round(joystick.getX() * (1 << 15));
           joyX = Math.max(Short.MIN_VALUE, Math.min(Short.MAX_VALUE, joyX));
@@ -431,16 +461,17 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
       switch (action)
       {
         case MotionEvent.ACTION_DOWN:
-        case MotionEvent.ACTION_POINTER_DOWN:
-          if (tatacon.getBounds().contains((int) event.getX(pointerIndex), (int) event.getY(pointerIndex)))
-          {
-            tatacon.setTrackId(event.getPointerId(pointerIndex));
-            concerned = true;
-          }
-          // 有意贯穿到 MOVE，按下瞬间就判定
-        case MotionEvent.ACTION_MOVE:
-          if (tatacon.getTrackId() == event.getPointerId(pointerIndex))
-          {
+	case MotionEvent.ACTION_POINTER_DOWN:
+	  if (tatacon.getBounds().contains((int) event.getX(pointerIndex), (int) event.getY(pointerIndex))
+		  && !isPointerOwnedByButtonDpadOrJoystick(event.getPointerId(pointerIndex)))
+	  {
+		tatacon.setTrackId(event.getPointerId(pointerIndex));
+		concerned = true;
+	  }
+        // 贯穿到 MOVE
+	case MotionEvent.ACTION_MOVE:
+	  if (tatacon.getTrackId() == event.getPointerId(pointerIndex))
+	  {
             concerned = true;
             int zone = InputOverlayDrawableTatacon.zoneForTouch(tatacon.getBounds(),
                     event.getX(pointerIndex), event.getY(pointerIndex));
@@ -450,7 +481,10 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
               if (prevZone != InputOverlayDrawableTatacon.ZONE_NONE)
                 setButton(tatacon.getControl(prevZone), false);
               if (zone != InputOverlayDrawableTatacon.ZONE_NONE)
+              {
                 setButton(tatacon.getControl(zone), true);
+                triggerHapticFeedback(); // Taiko drum hit
+              }
               tatacon.setActiveZone(zone);
             }
           }
@@ -475,185 +509,146 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
     return concerned;
   }
 
+  private void triggerHapticFeedback() {
+    if (mOverlayConfig != null && mOverlayConfig.hapticAmplitude > 0) {
+      Context ctx = getContext();
+      if (ctx != null) {
+        Vibrator vib = (Vibrator) ctx.getSystemService(Context.VIBRATOR_SERVICE);
+        if (vib != null && vib.hasVibrator()) {
+          vib.vibrate(VibrationEffect.createOneShot(80, mOverlayConfig.hapticAmplitude));
+        }
+      }
+    }
+  }
+
   public boolean onTouchWhileEditing(MotionEvent event)
   {
     int pointerIndex = event.getActionIndex();
     int fingerPositionX = (int) event.getX(pointerIndex);
     int fingerPositionY = (int) event.getY(pointerIndex);
 
-    // Maybe combine Button and Joystick as subclasses of the same parent?
-    // Or maybe create an interface like IMoveableHUDControl?
+    int action = event.getAction() & MotionEvent.ACTION_MASK;
     boolean intersect = false;
 
+    // If a control is already being configured, only handle that one
+    if (action == MotionEvent.ACTION_MOVE || action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_POINTER_UP) {
+        if (mButtonBeingConfigured != null) {
+            if (mEditMode == EditMode.MOVE) {
+                mButtonBeingConfigured.onConfigureTouch(event);
+            } else {
+                mButtonBeingConfigured.onConfigureResize(event);
+            }
+            if (action != MotionEvent.ACTION_MOVE) {
+                saveControlPosition(mButtonBeingConfigured.getLegacyId(),
+                        mButtonBeingConfigured.getBounds(),
+                        mButtonBeingConfigured.getFinalScale());
+                mButtonBeingConfigured = null;
+            }
+            invalidate();
+            return true;
+        }
+        if (mDpadBeingConfigured != null) {
+            if (mEditMode == EditMode.MOVE) {
+                mDpadBeingConfigured.onConfigureTouch(event);
+            } else {
+                mDpadBeingConfigured.onConfigureResize(event);
+            }
+            if (action != MotionEvent.ACTION_MOVE) {
+                saveControlPosition(mDpadBeingConfigured.getLegacyId(),
+                        mDpadBeingConfigured.getBounds(),
+                        mDpadBeingConfigured.getFinalScale());
+                mDpadBeingConfigured = null;
+            }
+            invalidate();
+            return true;
+        }
+        if (mJoystickBeingConfigured != null) {
+            if (mEditMode == EditMode.MOVE) {
+                mJoystickBeingConfigured.onConfigureTouch(event);
+            } else {
+                mJoystickBeingConfigured.onConfigureResize(event);
+            }
+            if (action != MotionEvent.ACTION_MOVE) {
+                saveControlPosition(mJoystickBeingConfigured.getLegacyId(),
+                        mJoystickBeingConfigured.getBounds(),
+                        mJoystickBeingConfigured.getFinalScale());
+                mJoystickBeingConfigured = null;
+            }
+            invalidate();
+            return true;
+        }
+        if (mTataconBeingConfigured != null) {
+            if (mEditMode == EditMode.MOVE) {
+                mTataconBeingConfigured.onConfigureTouch(event);
+            } else {
+                mTataconBeingConfigured.onConfigureResize(event);
+            }
+            if (action != MotionEvent.ACTION_MOVE) {
+                saveControlPosition(mTataconBeingConfigured.getLegacyId(),
+                        mTataconBeingConfigured.getBounds(),
+                        mTataconBeingConfigured.getFinalScale());
+                mTataconBeingConfigured = null;
+            }
+            invalidate();
+            return true;
+        }
+        // No control being configured, fall through to check for new selection on DOWN
+        if (action != MotionEvent.ACTION_DOWN && action != MotionEvent.ACTION_POINTER_DOWN) {
+            return false;
+        }
+    }
+
+    // ACTION_DOWN / ACTION_POINTER_DOWN: pick the first control that contains the touch point
+    // Priority: Button > Dpad > Joystick > Tatacon (order matters for overlapping controls)
     for (InputOverlayDrawableButton button : overlayButtons)
     {
-      // Determine the button state to apply based on the MotionEvent action flag.
-      switch (event.getAction() & MotionEvent.ACTION_MASK)
-      {
-        case MotionEvent.ACTION_DOWN:
-        case MotionEvent.ACTION_POINTER_DOWN:
-          // If no button is being moved now, remember the currently touched button to move.
-          if (mButtonBeingConfigured == null &&
-                  button.getBounds().contains(fingerPositionX, fingerPositionY))
-          {
+        if (button.getBounds().contains(fingerPositionX, fingerPositionY))
+        {
             mButtonBeingConfigured = button;
-			mButtonBeingConfigured.onConfigureTouch(event);
-			mButtonBeingConfigured.onConfigureResize(event);
+            mButtonBeingConfigured.onConfigureTouch(event);
+            mButtonBeingConfigured.onConfigureResize(event);
             intersect = true;
-          }
-          break;
-        case MotionEvent.ACTION_MOVE:
-			if (mButtonBeingConfigured != null)
-			{
-				if (mEditMode == EditMode.MOVE) {
-					mButtonBeingConfigured.onConfigureTouch(event);
-				} else {
-					mButtonBeingConfigured.onConfigureResize(event);
-				}
-				invalidate();
-				return true;
-			}
-			break;
-
-		case MotionEvent.ACTION_UP:
-		case MotionEvent.ACTION_POINTER_UP:
-			if (mButtonBeingConfigured == button)
-			{
-				saveControlPosition(mButtonBeingConfigured.getLegacyId(),
-				        mButtonBeingConfigured.getBounds(),
-				        mButtonBeingConfigured.getFinalScale());
-				mButtonBeingConfigured = null;
-				intersect = true;
-			}
-			break;
-      }
+            break;
+        }
     }
+    if (intersect) return true;
 
     for (InputOverlayDrawableDpad dpad : overlayDpads)
     {
-      // Determine the button state to apply based on the MotionEvent action flag.
-      switch (event.getAction() & MotionEvent.ACTION_MASK)
-      {
-        case MotionEvent.ACTION_DOWN:
-        case MotionEvent.ACTION_POINTER_DOWN:
-          // If no button is being moved now, remember the currently touched button to move.
-          if (mButtonBeingConfigured == null &&
-                  dpad.getBounds().contains(fingerPositionX, fingerPositionY))
-          {
+        if (dpad.getBounds().contains(fingerPositionX, fingerPositionY))
+        {
             mDpadBeingConfigured = dpad;
             mDpadBeingConfigured.onConfigureTouch(event);
             mDpadBeingConfigured.onConfigureResize(event);
             intersect = true;
-          }
-          break;
-        case MotionEvent.ACTION_MOVE:
-          if (mDpadBeingConfigured != null)
-          {
-            if (mEditMode == EditMode.MOVE) {
-              mDpadBeingConfigured.onConfigureTouch(event);
-            } else {
-              mDpadBeingConfigured.onConfigureResize(event);
-            }
-            invalidate();
-            return true;
-          }
-          break;
-
-        case MotionEvent.ACTION_UP:
-        case MotionEvent.ACTION_POINTER_UP:
-          if (mDpadBeingConfigured == dpad)
-          {
-            // Persist button position and scale by saving new place.
-            saveControlPosition(mDpadBeingConfigured.getLegacyId(),
-                    mDpadBeingConfigured.getBounds(),
-                    mDpadBeingConfigured.getFinalScale());
-            mDpadBeingConfigured = null;
-            intersect = true;
-          }
-          break;
-      }
+            break;
+        }
     }
+    if (intersect) return true;
 
     for (InputOverlayDrawableJoystick joystick : overlayJoysticks)
     {
-      switch (event.getAction())
-      {
-        case MotionEvent.ACTION_DOWN:
-        case MotionEvent.ACTION_POINTER_DOWN:
-          if (mJoystickBeingConfigured == null &&
-                  joystick.getBounds().contains(fingerPositionX, fingerPositionY))
-          {
+        if (joystick.getBounds().contains(fingerPositionX, fingerPositionY))
+        {
             mJoystickBeingConfigured = joystick;
             mJoystickBeingConfigured.onConfigureTouch(event);
             mJoystickBeingConfigured.onConfigureResize(event);
             intersect = true;
-          }
-          break;
-        case MotionEvent.ACTION_MOVE:
-          if (mJoystickBeingConfigured != null)
-          {
-            if (mEditMode == EditMode.MOVE) {
-              mJoystickBeingConfigured.onConfigureTouch(event);
-            } else {
-              mJoystickBeingConfigured.onConfigureResize(event);
-            }
-            invalidate();
-            intersect = true;
-          }
-          break;
-        case MotionEvent.ACTION_UP:
-        case MotionEvent.ACTION_POINTER_UP:
-          if (mJoystickBeingConfigured != null)
-          {
-            saveControlPosition(mJoystickBeingConfigured.getLegacyId(),
-                    mJoystickBeingConfigured.getBounds(),
-                    mJoystickBeingConfigured.getFinalScale());
-            mJoystickBeingConfigured = null;
-            intersect = true;
-          }
-          break;
-      }
+            break;
+        }
     }
+    if (intersect) return true;
 
     for (InputOverlayDrawableTatacon tatacon : overlayTatacons)
     {
-      switch (event.getAction() & MotionEvent.ACTION_MASK)
-      {
-        case MotionEvent.ACTION_DOWN:
-        case MotionEvent.ACTION_POINTER_DOWN:
-          if (mTataconBeingConfigured == null &&
-                  tatacon.getBounds().contains(fingerPositionX, fingerPositionY))
-          {
+        if (tatacon.getBounds().contains(fingerPositionX, fingerPositionY))
+        {
             mTataconBeingConfigured = tatacon;
             mTataconBeingConfigured.onConfigureTouch(event);
             mTataconBeingConfigured.onConfigureResize(event);
             intersect = true;
-          }
-          break;
-        case MotionEvent.ACTION_MOVE:
-          if (mTataconBeingConfigured != null)
-          {
-            if (mEditMode == EditMode.MOVE) {
-              mTataconBeingConfigured.onConfigureTouch(event);
-            } else {
-              mTataconBeingConfigured.onConfigureResize(event);
-            }
-            invalidate();
-            return true;
-          }
-          break;
-        case MotionEvent.ACTION_UP:
-        case MotionEvent.ACTION_POINTER_UP:
-          if (mTataconBeingConfigured == tatacon)
-          {
-            saveControlPosition(mTataconBeingConfigured.getLegacyId(),
-                    mTataconBeingConfigured.getBounds(),
-                    mTataconBeingConfigured.getFinalScale());
-            mTataconBeingConfigured = null;
-            intersect = true;
-          }
-          break;
-      }
+            break;
+        }
     }
 
     return intersect;
@@ -1064,9 +1059,8 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
     int width = overlayDrawable.getWidth();
     int height = overlayDrawable.getHeight();
 
-    // 중심 기준 normalized 좌표를 불러와 현재 LayoutBounds 기준으로 좌상단을 복원.
-    // 저장 시와 동일한 의미론(중심 분수)이라 크기/배율/화면 회전으로 레이아웃 크기가
-    // 바뀌어도 시각 중심이 유지된다.
+	// Load the normalized coordinates based on the center point and restore the top-left corner based on current LayoutBounds.
+    // Since it uses the same semantics (center fraction) as when saving, the visual center is preserved even if the layout size changes due to resizing, scaling, or screen rotation.
     int centerX = Math.round(position.getNormalizedX() * layoutBounds.width);
     int centerY = Math.round(position.getNormalizedY() * layoutBounds.height);
     int drawableX = centerX - width / 2;
@@ -1120,6 +1114,20 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
         return true;
     for (InputOverlayDrawableTatacon tatacon : overlayTatacons)
       if (tatacon.getTrackId() == pointerId)
+        return true;
+    return false;
+  }
+
+  private boolean isPointerOwnedByButtonDpadOrJoystick(int pointerId)
+  {
+    for (InputOverlayDrawableButton button : overlayButtons)
+      if (button.getTrackId() == pointerId)
+        return true;
+    for (InputOverlayDrawableDpad dpad : overlayDpads)
+      if (dpad.getTrackId() == pointerId)
+        return true;
+    for (InputOverlayDrawableJoystick joystick : overlayJoysticks)
+      if (joystick.getTrackId() == pointerId)
         return true;
     return false;
   }
@@ -1241,8 +1249,8 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
     OverlayLayout normalizedLayout = resolvedState.getLayout().normalized();
     OverlayConfig normalizedConfig = resolvedState.getConfig().normalized();
 	mOverlayConfig = normalizedConfig;
-    float resolvedScale = normalizedConfig.getOverlayScale() / 100f;
-    int resolvedOpacity = normalizedConfig.getOverlayOpacity();
+    float resolvedScale = normalizedConfig.overlayScale / 100f;
+	int resolvedOpacity = normalizedConfig.overlayOpacity;
     boolean changed = !normalizedLayout.equals(mLayout)
             || Float.compare(mScale, resolvedScale) != 0
             || mOpacity != resolvedOpacity;

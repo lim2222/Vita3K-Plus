@@ -139,7 +139,12 @@ internal fun OverlaySettingsRows(
             onShowHelp = onShowHelp
         )
 
-        OverlayButtonRegistry.ids.forEach { id ->
+        OverlayButtonRegistry.ids.filter { id ->
+            id != InputOverlay.ButtonType.TRIGGER_L2 &&
+            id != InputOverlay.ButtonType.TRIGGER_R2 &&
+            id != InputOverlay.ButtonType.TRIGGER_L3 &&
+            id != InputOverlay.ButtonType.TRIGGER_R3
+        }.forEach { id ->
             SettingsToggleRow(
                 title = officialButtonName(id),
                 checked = overlayConfig.isButtonVisible(id),
@@ -167,6 +172,7 @@ internal fun OverlaySettingsRows(
             ),
             onShowHelp = onShowHelp
         )
+
         SettingsToggleRow(
             title = stringResource(R.string.settings_controls_l2r2),
             checked = overlayConfig.l2r2Visible,
@@ -175,6 +181,23 @@ internal fun OverlaySettingsRows(
             help = SettingsHelpEntry(
                 title = stringResource(R.string.settings_controls_l2r2),
                 body = stringResource(R.string.settings_controls_l2r2_desc),
+                scope = SettingsScope.Global
+            ),
+            onShowHelp = onShowHelp
+        )
+
+        SettingsSliderRow(
+            title = stringResource(R.string.settings_controls_haptic_strength),
+            valueLabel = overlayConfig.hapticAmplitude.toString(),
+            value = overlayConfig.hapticAmplitude.toFloat(),
+            onValueChange = {
+                onOverlayConfigChange(overlayConfig.copy(hapticAmplitude = it.toInt()))
+            },
+            valueRange = 0f..255f,
+            steps = 254,
+            help = SettingsHelpEntry(
+                title = stringResource(R.string.settings_controls_haptic_strength),
+                body = stringResource(R.string.settings_controls_haptic_strength_desc),
                 scope = SettingsScope.Global
             ),
             onShowHelp = onShowHelp

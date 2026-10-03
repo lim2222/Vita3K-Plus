@@ -37,6 +37,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -166,6 +167,7 @@ fun SettingsRoute(
         }
     }
 
+    // Listen for game overlay changes from in-game settings and reload
     fun reloadOverlayState() {
         val loaded = OverlayStore.resolveState(
             context = context,
@@ -174,6 +176,21 @@ fun SettingsRoute(
         )
         overlayState = loaded
         originalOverlayState = loaded
+    }
+
+    DisposableEffect(overlayScopeId, isPerApp) {
+        if (!isPerApp || overlayScopeId.isBlank()) {
+            return@DisposableEffect onDispose { }
+        }
+        val listener = { scopeId: String ->
+            if (scopeId == overlayScopeId) {
+                reloadOverlayState()
+            }
+        }
+        OverlayStore.addOnGameOverlayChangedListener(listener)
+        onDispose {
+            OverlayStore.removeOnGameOverlayChangedListener(listener)
+        }
     }
 
     fun persistOverlayStateChanges() {
