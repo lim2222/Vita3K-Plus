@@ -22,7 +22,13 @@ data class OverlayConfig(
     val hideOverlayWhenControllerConnected: Boolean = true,
 
     @JvmField
-    val hapticAmplitude: Int = 255
+    val hapticAmplitude: Int = 255,
+
+    @JvmField
+    val screenOrientation: Int = 0, // 0=Auto, 1=Portrait, 2=Landscape
+
+    @JvmField
+    val portraitYOffset: Float = 0.0f
 ) {
     val controlsVisible: Boolean
         get() = overlayMask != 0
@@ -54,8 +60,8 @@ data class OverlayConfig(
         }
         // 同步 visibleButtons: 开启组时自动开启 L2/R2 单独bit，关闭组时关闭它们
         var updatedButtons = visibleButtons
-        val l2Bit = OverlayButtonRegistry.bitFor(InputOverlay.ButtonType.TRIGGER_L2)
-        val r2Bit = OverlayButtonRegistry.bitFor(InputOverlay.ButtonType.TRIGGER_R2)
+        val l2Bit = OverlayButtonRegistry.bitFor(ButtonType.TRIGGER_L2)
+        val r2Bit = OverlayButtonRegistry.bitFor(ButtonType.TRIGGER_R2)
         if (visible) {
             updatedButtons = updatedButtons or l2Bit or r2Bit
         } else {
@@ -73,8 +79,8 @@ data class OverlayConfig(
         }
         // 同步 visibleButtons: 开启组时自动开启 L3/R3 单独bit，关闭组时关闭它们
         var updatedButtons = visibleButtons
-        val l3Bit = OverlayButtonRegistry.bitFor(InputOverlay.ButtonType.TRIGGER_L3)
-        val r3Bit = OverlayButtonRegistry.bitFor(InputOverlay.ButtonType.TRIGGER_R3)
+        val l3Bit = OverlayButtonRegistry.bitFor(ButtonType.TRIGGER_L3)
+        val r3Bit = OverlayButtonRegistry.bitFor(ButtonType.TRIGGER_R3)
         if (visible) {
             updatedButtons = updatedButtons or l3Bit or r3Bit
         } else {

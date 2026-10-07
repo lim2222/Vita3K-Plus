@@ -117,4 +117,13 @@ Java_org_vita3k_emulator_overlay_InputOverlay_setTouchState(JNIEnv *env, jobject
     set_touch_mode(emuenv->touch, static_cast<int>(mode));
 }
 
+JNIEXPORT void JNICALL
+Java_org_vita3k_emulator_overlay_InputOverlay_setDeviceNativeRotation(JNIEnv *env, jobject thiz, jint rotation) {
+    auto *emuenv = get_emuenv();
+    if (!emuenv || !emuenv->renderer)
+        return;
+
+    emuenv->renderer->set_device_native_rotation(rotation);
+}
+
 } // extern "C"

@@ -10,11 +10,12 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 
 @Composable
-internal fun ImmersiveLandscapeEffect(
+internal fun ImmersiveOrientationEffect(
     activity: Activity?,
+    orientation: Int = 0,  // 0=Auto, 1=Portrait, 2=Landscape
     enabled: Boolean = true
 ) {
-    DisposableEffect(activity, enabled) {
+    DisposableEffect(activity, enabled, orientation) {
         if (activity == null || !enabled) {
             return@DisposableEffect onDispose { }
         }
@@ -25,7 +26,14 @@ internal fun ImmersiveLandscapeEffect(
         val insetsController = WindowCompat.getInsetsController(window, decorView)
         val previousCutoutMode = window.attributes.layoutInDisplayCutoutMode
 
-        activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        // Apply orientation: 0=Auto(Sensor), 1=Portrait, 2=Landscape
+        val targetOrientation = when (orientation) {
+            1 -> ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            2 -> ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+            else -> ActivityInfo.SCREEN_ORIENTATION_SENSOR
+        }
+        activity.requestedOrientation = targetOrientation
+
         WindowCompat.setDecorFitsSystemWindows(window, false)
         insetsController.apply {
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
@@ -56,4 +64,14 @@ internal fun ImmersiveLandscapeEffect(
             activity.requestedOrientation = previousOrientation
         }
     }
+}
+
+// Deprecated alias for backward compatibility
+@Composable
+@Deprecated("Use ImmersiveOrientationEffect instead", ReplaceWith("ImmersiveOrientationEffect(activity, orientation = 2, enabled)"))
+internal fun ImmersiveLandscapeEffect(
+    activity: Activity?,
+    enabled: Boolean = true
+) {
+    ImmersiveOrientationEffect(activity, orientation = 2, enabled = enabled)
 }

@@ -54,11 +54,13 @@ import org.libsdl.app.SDLActivity;
 import org.libsdl.app.SDLDummyEdit;
 import org.libsdl.app.SDLSurface;
 import org.vita3k.emulator.data.AppStorage;
+import org.vita3k.emulator.data.EmulatorConfig;
 import org.vita3k.emulator.data.NativeImeState;
 import org.vita3k.emulator.overlay.InputOverlay;
 import org.vita3k.emulator.overlay.OverlayLayout;
 import org.vita3k.emulator.overlay.OverlayStore;
 import org.vita3k.emulator.overlay.OverlayConfig;
+import org.vita3k.emulator.overlay.OverlayConfigStore;
 import org.vita3k.emulator.ui.screens.emulation.NativeImeOverlayHost;
 import org.vita3k.emulator.ui.screens.emulation.EmulationPauseMenuHost;
 import org.vita3k.emulator.ui.viewmodel.EmulationSessionViewModel;
@@ -117,6 +119,37 @@ public class Emulator extends SDLActivity
 
     public InputOverlay getmOverlay() {
         return mSurface != null ? mSurface.getmOverlay() : null;
+    }
+
+    // Callback for config changes from MainActivity
+    public interface OnConfigChangeListener {
+        void onScreenOrientationChanged(int orientation);
+        void onPortraitYOffsetChanged(float offset);
+        void onRendererConfigChanged();
+    }
+
+    private static OnConfigChangeListener sConfigChangeListener;
+
+    public static void setOnConfigChangeListener(OnConfigChangeListener listener) {
+        sConfigChangeListener = listener;
+    }
+
+    public static void notifyScreenOrientationChanged(int orientation) {
+        if (sConfigChangeListener != null) {
+            sConfigChangeListener.onScreenOrientationChanged(orientation);
+        }
+    }
+
+    public static void notifyPortraitYOffsetChanged(float offset) {
+        if (sConfigChangeListener != null) {
+            sConfigChangeListener.onPortraitYOffsetChanged(offset);
+        }
+    }
+
+    public static void notifyRendererConfigChanged() {
+        if (sConfigChangeListener != null) {
+            sConfigChangeListener.onRendererConfigChanged();
+        }
     }
 
     @Keep
@@ -228,6 +261,27 @@ public class Emulator extends SDLActivity
         installPauseMenu();
         installKeyboardVisibilityListener();
         refreshUiState(false);
+
+        // Register config change listener
+        setOnConfigChangeListener(new OnConfigChangeListener() {
+            @Override
+            public void onScreenOrientationChanged(int orientation) {
+                applyScreenOrientation();
+            }
+
+            @Override
+            public void onPortraitYOffsetChanged(float offset) {
+                applyPortraitYOffset(offset);
+            }
+
+            @Override
+            public void onRendererConfigChanged() {
+                applyRendererConfig();
+            }
+        });
+
+        // Apply screen orientation AFTER sessionViewModel is initialized so it reads correct config
+        applyScreenOrientation();
     }
 
     @Override
@@ -236,6 +290,7 @@ public class Emulator extends SDLActivity
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME);
         refreshUiState(false);
         refreshNativeDisplayRotation();
+        applyScreenOrientation();
         updateControllerConnectionState();
         resumeFromBackgroundIfNeeded();
     }
@@ -244,6 +299,7 @@ public class Emulator extends SDLActivity
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
         refreshNativeDisplayRotation();
+        applyScreenOrientation();
     }
 
     @Override
@@ -778,6 +834,8 @@ public class Emulator extends SDLActivity
     }
 
     private native void setNativeDisplayRotation(int rotation);
+
+    private native void setPortraitYOffset(float offset);
 
     public native void filedialogReturn(String result_path);
 
@@ -1344,5 +1402,84 @@ public class Emulator extends SDLActivity
     @Override
     public void onInputDeviceChanged(int deviceId) {
         updateControllerConnectionState();
+    }
+
+    /**
+     * Resolves the configured screen orientation setting (0=Auto, 1=Portrait, 2=Landscape)
+     * for the current game, or -1 if no config could be loaded.
+     */
+    private int resolveScreenOrientationSetting() {
+        String gameId = currentGameId != null ? currentGameId : "";
+        EmulatorConfig config = gameId.isEmpty() ? NativeLib.INSTANCE.getGlobalConfig() : NativeLib.INSTANCE.getCustomConfig(gameId);
+        if (config == null) {
+            // Game has no custom config yet: fall back to the global settings so the
+            // configured orientation still applies instead of leaving SDL's default.
+            config = NativeLib.INSTANCE.getGlobalConfig();
+        }
+        if (config == null) return -1;
+        return config.screenOrientation;
+    }
+
+    private static int toActivityOrientation(int setting) {
+        switch (setting) {
+            case 1: return android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;
+            case 2: return android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE;
+            default: return android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR;
+        }
+    }
+
+    /**
+     * SDL requests an orientation whenever its window is created or resized, deriving it
+     * from the window size (landscape). That would clobber the user's configured
+     * orientation right after our onCreate/onResume apply, so honor our own setting
+     * instead and only defer to SDL when no config could be loaded at all.
+     */
+    @Override
+    public void setOrientationBis(int w, int h, boolean resizable, String hint) {
+        final int setting = resolveScreenOrientationSetting();
+        if (setting < 0) {
+            super.setOrientationBis(w, h, resizable, hint);
+            return;
+        }
+        final int targetOrientation = toActivityOrientation(setting);
+        runOnUiThread(() -> {
+            if (isFinishing()) return;
+            setRequestedOrientation(targetOrientation);
+        });
+    }
+
+    @Keep
+    public void applyScreenOrientation() {
+        runOnUiThread(() -> {
+            if (isFinishing()) return;
+            int orientation = resolveScreenOrientationSetting();
+            if (orientation < 0) return;
+            int targetOrientation = toActivityOrientation(orientation);
+            setRequestedOrientation(targetOrientation);
+            // Keep the input overlay's layout orientation in sync with the emulator setting
+            InputOverlay overlay = getmOverlay();
+            if (overlay != null) {
+                overlay.setDeviceNativeRotation(getNativeDisplayRotation());
+                overlay.setScreenOrientation(orientation);
+            }
+        });
+    }
+
+    @Keep
+    public void applyRendererConfig() {
+        InputOverlay overlay = getmOverlay();
+        if (overlay == null) return;
+        String gameId = currentGameId != null ? currentGameId : "";
+        // Load the overlay config (separate from EmulatorConfig)
+        OverlayConfig config = OverlayConfigStore.INSTANCE.load(getApplication(), gameId, true);
+        overlay.setOverlayConfig(config);
+    }
+
+    @Keep
+    public void applyPortraitYOffset(float offset) {
+        try {
+            setPortraitYOffset(offset);
+        } catch (Throwable ignored) {
+        }
     }
 }

@@ -12,6 +12,7 @@
 #include <ime/keyboard.h>
 #include <io/state.h>
 #include <motion/functions.h>
+#include <renderer/texture_cache.h>
 
 #include <SDL3/SDL_events.h>
 #include <jni.h>
@@ -90,6 +91,53 @@ Java_org_vita3k_emulator_Emulator_setNativeDisplayRotation(JNIEnv *, jobject, ji
         return;
 
     set_display_rotation(emuenv->motion, rotation);
+
+    if (emuenv->renderer) {
+        emuenv->renderer->set_device_native_rotation(rotation);
+    }
+}
+
+JNIEXPORT void JNICALL
+Java_org_vita3k_emulator_Emulator_setScreenOrientation(JNIEnv *, jobject, jint orientation) {
+    auto *emuenv = get_emuenv();
+    if (!emuenv || !emuenv->renderer)
+        return;
+
+    emuenv->renderer->set_screen_orientation(orientation);
+}
+
+JNIEXPORT void JNICALL
+Java_org_vita3k_emulator_Emulator_setPortraitYOffset(JNIEnv *, jobject, jfloat offset) {
+    auto *emuenv = get_emuenv();
+    if (!emuenv || !emuenv->renderer)
+        return;
+
+    emuenv->renderer->set_portrait_y_offset(offset);
+}
+
+JNIEXPORT void JNICALL
+Java_org_vita3k_emulator_Emulator_applyRendererConfigNative(JNIEnv *, jobject) {
+    auto *emuenv = get_emuenv();
+    if (!emuenv || !emuenv->renderer)
+        return;
+
+    const auto &cc = emuenv->cfg.current_config;
+    auto &r = *emuenv->renderer;
+    r.res_multiplier = cc.resolution_multiplier;
+    r.set_surface_sync_state(cc.disable_surface_sync);
+    r.set_screen_filter(cc.screen_filter);
+    r.set_anisotropic_filtering(cc.anisotropic_filtering);
+    r.set_stretch_display(cc.stretch_the_display_area);
+    r.stretch_hd_pixel_perfect(cc.fullscreen_hd_res_pixel_perfect);
+    r.set_screen_orientation(cc.screen_orientation);
+    r.set_portrait_y_offset(cc.portrait_y_offset);
+    r.set_device_native_rotation(emuenv->motion.device_native_rotation);
+    r.set_async_compilation(cc.async_pipeline_compilation);
+    r.get_texture_cache()->set_replacement_state(cc.import_textures, cc.export_textures, cc.export_as_png);
+    r.common_dialog = &emuenv->common_dialog;
+    r.sys_date_format = cc.sys_date_format;
+    r.sys_lang = cc.sys_lang;
+    r.sys_button = cc.sys_button;
 }
 
 JNIEXPORT jboolean JNICALL

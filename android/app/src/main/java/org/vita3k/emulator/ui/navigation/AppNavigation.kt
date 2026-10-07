@@ -39,7 +39,7 @@ import org.vita3k.emulator.ui.screens.UserManagementScreen
 import org.vita3k.emulator.ui.screens.settings.SettingsRoute
 import org.vita3k.emulator.trophies.ui.screen.TrophyBrowserRoute
 import org.vita3k.emulator.trophies.ui.viewmodel.TrophyViewerViewModel
-import org.vita3k.emulator.ui.common.ImmersiveLandscapeEffect
+import org.vita3k.emulator.ui.common.ImmersiveOrientationEffect
 import org.vita3k.emulator.ui.viewmodel.AppsListViewModel
 import org.vita3k.emulator.ui.viewmodel.InstallViewModel
 import org.vita3k.emulator.ui.viewmodel.InstallType
@@ -85,7 +85,7 @@ fun AppNavigation(
         value = if (AppStorage.isInitialSetupCompleted(context)) ROUTE_APPS_LIST else ROUTE_INITIAL_SETUP
     }
 
-    ImmersiveLandscapeEffect(activity = activity, enabled = trophyRouteActive)
+    ImmersiveOrientationEffect(activity = activity, enabled = trophyRouteActive)
 
     LaunchedEffect(appsListViewModel.initialized) {
         if (appsListViewModel.initialized) {

@@ -633,6 +633,14 @@
     <string name="settings_emulator_stretch_display_desc">Stretch the display area to fill the entire window, ignoring the original aspect ratio.</string>
     <string name="settings_emulator_pixel_perfect">Fullscreen HD Pixel Perfect</string>
     <string name="settings_emulator_pixel_perfect_desc">Check the box to get a pixel perfect rendering with HD resolutions (1080p, 4K) in fullscreen on a 16:9 aspect ratio monitor at the price of slight cropping at the top and the bottom of the screen.</string>
+    <string name="settings_emulator_screen_orientation">Screen Orientation</string>
+    <string name="settings_emulator_screen_orientation_desc">Set the screen orientation for games. Auto follows the device rotation.</string>
+    <string name="settings_emulator_screen_orientation_auto">Auto</string>
+    <string name="settings_emulator_screen_orientation_portrait">Portrait</string>
+    <string name="settings_emulator_screen_orientation_landscape">Landscape</string>
+    <string name="settings_emulator_portrait_y_offset">Portrait Y-Offset: %1$d px</string>
+    <string name="settings_emulator_portrait_y_offset_desc">Vertical offset of the picture in Portrait mode. 0 keeps the 4:3 image aligned to the top; increase it to push the picture down and leave room at the top for touch controls.</string>
+    <string name="settings_display_screen_orientation">Screen Orientation</string>
     <string name="settings_emulator_file_loading_delay">File Loading Delay: %1$d ms</string>
     <string name="settings_emulator_file_loading_delay_desc">Add an artificial delay to file loading. This is required for some games that load files too quickly compared to real hardware (e.g., Silent Hill).</string>
     <string name="settings_emulator_show_compile_shaders">Show Shader Compilation Hint</string>

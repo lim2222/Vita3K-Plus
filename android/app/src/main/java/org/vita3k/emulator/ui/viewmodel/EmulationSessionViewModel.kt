@@ -286,12 +286,19 @@ class EmulationSessionViewModel(application: Application) : AndroidViewModel(app
         releaseInputs(emulator)
         val updatedOverlayState = captureOverlayState(emulator)
         persistOverlayState(updatedOverlayState)
+        // Apply the captured layout to the overlay to ensure in-memory state matches saved state
+        emulator.setControllerOverlayLayout(updatedOverlayState.layout)
         uiState = uiState.withOverlayConfig(updatedOverlayState.config).copy(
             showMenu = true,
             isPaused = uiState.wasPausedBeforeControlsEditor,
             isEditingControls = false,
             wasPausedBeforeControlsEditor = false,
-            statusMessage = null
+            statusMessage = null,
+            // CRITICAL: keep the in-memory layout in sync with what was just captured &
+            // persisted, otherwise the next applyOverlayState() (e.g. closeMenu after Done)
+            // pushes the stale pre-edit layout back onto the overlay and the moved
+            // positions appear to revert.
+            overlayLayout = updatedOverlayState.layout
         )
         emulator.ensurePauseMenuOnTop()
         emulator.setControllerOverlayState(0, false, false)
@@ -305,7 +312,7 @@ class EmulationSessionViewModel(application: Application) : AndroidViewModel(app
             layout = defaultLayout
         )
         persistOverlayState(updatedOverlayState)
-        uiState = uiState.copy(statusMessage = null)
+        uiState = uiState.copy(statusMessage = null, overlayLayout = defaultLayout)
         applyOverlayState(emulator)
     }
 
@@ -343,6 +350,7 @@ class EmulationSessionViewModel(application: Application) : AndroidViewModel(app
         )
         persistOverlayState(updatedOverlayState)
         uiState = uiState.withOverlayConfig(updatedOverlayState.config)
+            .copy(overlayLayout = updatedOverlayState.layout)
         applyOverlayState(emulator)
     }
 
@@ -352,8 +360,10 @@ class EmulationSessionViewModel(application: Application) : AndroidViewModel(app
             return
         }
 
-        OverlayStore.saveGameOverride(getApplication(), titleId, captureOverlayState(emulator))
+        val captured = captureOverlayState(emulator)
+        OverlayStore.saveGameOverride(getApplication(), titleId, captured)
         useGameOverlayOverride = true
+        uiState = uiState.withOverlayConfig(captured.config).copy(overlayLayout = captured.layout)
     }
 
     fun clearGameOverlayOverride(emulator: Emulator) {
@@ -368,6 +378,7 @@ class EmulationSessionViewModel(application: Application) : AndroidViewModel(app
         val resolved = resolveOverlayState(titleId)
         useGameOverlayOverride = resolved.first
         uiState = uiState.withOverlayConfig(resolved.second.config)
+            .copy(overlayLayout = resolved.second.layout)
         applyOverlayState(emulator)
     }
 

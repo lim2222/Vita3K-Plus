@@ -93,7 +93,9 @@ struct Config {
         bool texture_cache = true;
         bool stretch_the_display_area = false;
         bool fullscreen_hd_res_pixel_perfect = false;
+        int screen_orientation = 0;  // 0=Auto, 1=Portrait, 2=Landscape
         int file_loading_delay = 0;
+        float portrait_y_offset = 0.0f;
         bool psn_signed_in = false;
         int sys_button = static_cast<int>(SCE_SYSTEM_PARAM_ENTER_BUTTON_CROSS);
         int sys_lang = static_cast<int>(SCE_SYSTEM_PARAM_LANG_ENGLISH_US);

@@ -84,7 +84,7 @@ bool ScreenRenderer::init(const fs::path &static_assets) {
     return true;
 }
 
-void ScreenRenderer::render(const SceFVector2 &viewport_pos, const SceFVector2 &viewport_size, const float *uvs, const GLuint texture, const SceFVector2 texture_size, GLuint default_fbo) {
+void ScreenRenderer::render(const SceFVector2 &viewport_pos, const SceFVector2 &viewport_size, const float *uvs, const GLuint texture, const SceFVector2 texture_size, GLuint default_fbo, uint32_t screen_rotation) {
     // Code for backup and restore is taken from ImGui project ImGui_ImplSdlGL3_RenderDrawData
     // Backup GL state
     GLint last_framebuffer;
@@ -204,6 +204,12 @@ void ScreenRenderer::render(const SceFVector2 &viewport_pos, const SceFVector2 &
     if (enable_fxaa) {
         const GLint invScreenLocation = glGetUniformLocation(*shader, "inv_frame_size");
         glUniform2f(invScreenLocation, 1 / texture_size.x, 1 / texture_size.y);
+    }
+
+    // Set screen rotation uniform
+    const GLint rotationLocation = glGetUniformLocation(*shader, "u_screen_rotation");
+    if (rotationLocation >= 0) {
+        glUniform1ui(rotationLocation, screen_rotation);
     }
 
     glBindTexture(GL_TEXTURE_2D, texture);

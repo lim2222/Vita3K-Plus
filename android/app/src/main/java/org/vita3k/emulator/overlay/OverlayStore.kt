@@ -30,6 +30,7 @@ object OverlayStore {
     private const val KEY_POSITION_X_SUFFIX = ":x"
     private const val KEY_POSITION_Y_SUFFIX = ":y"
 	private const val KEY_POSITION_SCALE_SUFFIX = ":scale"
+    private const val KEY_ORIENTATION_SUFFIX = ":orientation"
 
     // Listeners for overlay config changes (e.g., to notify running game and settings screen)
     private val onGameOverlayChangedListeners = mutableSetOf<(String) -> Unit>()
@@ -55,25 +56,25 @@ object OverlayStore {
     )
 
     private val defaultEntries = listOf(
-        OverlayPositionDefaults(InputOverlay.ButtonType.BUTTON_CROSS, R.integer.BUTTON_CROSS_X, R.integer.BUTTON_CROSS_Y),
-        OverlayPositionDefaults(InputOverlay.ButtonType.BUTTON_CIRCLE, R.integer.BUTTON_CIRCLE_X, R.integer.BUTTON_CIRCLE_Y),
-        OverlayPositionDefaults(InputOverlay.ButtonType.BUTTON_SQUARE, R.integer.BUTTON_SQUARE_X, R.integer.BUTTON_SQUARE_Y),
-        OverlayPositionDefaults(InputOverlay.ButtonType.BUTTON_TRIANGLE, R.integer.BUTTON_TRIANGLE_X, R.integer.BUTTON_TRIANGLE_Y),
-        OverlayPositionDefaults(InputOverlay.ButtonType.BUTTON_SELECT, R.integer.BUTTON_SELECT_X, R.integer.BUTTON_SELECT_Y),
-        OverlayPositionDefaults(InputOverlay.ButtonType.BUTTON_START, R.integer.BUTTON_START_X, R.integer.BUTTON_START_Y),
-        OverlayPositionDefaults(InputOverlay.ButtonType.BUTTON_PS, R.integer.BUTTON_PS_X, R.integer.BUTTON_PS_Y),
-        OverlayPositionDefaults(InputOverlay.ButtonType.DPAD_UP, R.integer.DPAD_UP_X, R.integer.DPAD_UP_Y),
-        OverlayPositionDefaults(InputOverlay.ButtonType.STICK_LEFT, R.integer.STICK_LEFT_X, R.integer.STICK_LEFT_Y),
-        OverlayPositionDefaults(InputOverlay.ButtonType.STICK_RIGHT, R.integer.STICK_RIGHT_X, R.integer.STICK_RIGHT_Y),
-        OverlayPositionDefaults(InputOverlay.ButtonType.TRIGGER_L, R.integer.TRIGGER_L_X, R.integer.TRIGGER_L_Y),
-        OverlayPositionDefaults(InputOverlay.ButtonType.TRIGGER_R, R.integer.TRIGGER_R_X, R.integer.TRIGGER_R_Y),
-        OverlayPositionDefaults(InputOverlay.ButtonType.TRIGGER_L2, R.integer.TRIGGER_L2_X, R.integer.TRIGGER_L2_Y),
-        OverlayPositionDefaults(InputOverlay.ButtonType.TRIGGER_R2, R.integer.TRIGGER_R2_X, R.integer.TRIGGER_R2_Y),
-        OverlayPositionDefaults(InputOverlay.ButtonType.TRIGGER_L3, R.integer.TRIGGER_L3_X, R.integer.TRIGGER_L3_Y),
-        OverlayPositionDefaults(InputOverlay.ButtonType.TRIGGER_R3, R.integer.TRIGGER_R3_X, R.integer.TRIGGER_R3_Y),
-        OverlayPositionDefaults(InputOverlay.ButtonType.BUTTON_TOUCH_HIDE, R.integer.BUTTON_TOUCH_HIDE_X, R.integer.BUTTON_TOUCH_HIDE_Y),
-        OverlayPositionDefaults(InputOverlay.ButtonType.BUTTON_TOUCH_SWITCH, R.integer.BUTTON_TOUCH_SWITCH_X, R.integer.BUTTON_TOUCH_SWITCH_Y),
-		OverlayPositionDefaults(InputOverlay.ButtonType.TATACON, R.integer.BUTTON_TATACON_X, R.integer.BUTTON_TATACON_Y)
+        OverlayPositionDefaults(ButtonType.BUTTON_CROSS, R.integer.BUTTON_CROSS_X, R.integer.BUTTON_CROSS_Y),
+        OverlayPositionDefaults(ButtonType.BUTTON_CIRCLE, R.integer.BUTTON_CIRCLE_X, R.integer.BUTTON_CIRCLE_Y),
+        OverlayPositionDefaults(ButtonType.BUTTON_SQUARE, R.integer.BUTTON_SQUARE_X, R.integer.BUTTON_SQUARE_Y),
+        OverlayPositionDefaults(ButtonType.BUTTON_TRIANGLE, R.integer.BUTTON_TRIANGLE_X, R.integer.BUTTON_TRIANGLE_Y),
+        OverlayPositionDefaults(ButtonType.BUTTON_SELECT, R.integer.BUTTON_SELECT_X, R.integer.BUTTON_SELECT_Y),
+        OverlayPositionDefaults(ButtonType.BUTTON_START, R.integer.BUTTON_START_X, R.integer.BUTTON_START_Y),
+        OverlayPositionDefaults(ButtonType.BUTTON_PS, R.integer.BUTTON_PS_X, R.integer.BUTTON_PS_Y),
+        OverlayPositionDefaults(ButtonType.DPAD_UP, R.integer.DPAD_UP_X, R.integer.DPAD_UP_Y),
+        OverlayPositionDefaults(ButtonType.STICK_LEFT, R.integer.STICK_LEFT_X, R.integer.STICK_LEFT_Y),
+        OverlayPositionDefaults(ButtonType.STICK_RIGHT, R.integer.STICK_RIGHT_X, R.integer.STICK_RIGHT_Y),
+        OverlayPositionDefaults(ButtonType.TRIGGER_L, R.integer.TRIGGER_L_X, R.integer.TRIGGER_L_Y),
+        OverlayPositionDefaults(ButtonType.TRIGGER_R, R.integer.TRIGGER_R_X, R.integer.TRIGGER_R_Y),
+        OverlayPositionDefaults(ButtonType.TRIGGER_L2, R.integer.TRIGGER_L2_X, R.integer.TRIGGER_L2_Y),
+        OverlayPositionDefaults(ButtonType.TRIGGER_R2, R.integer.TRIGGER_R2_X, R.integer.TRIGGER_R2_Y),
+        OverlayPositionDefaults(ButtonType.TRIGGER_L3, R.integer.TRIGGER_L3_X, R.integer.TRIGGER_L3_Y),
+        OverlayPositionDefaults(ButtonType.TRIGGER_R3, R.integer.TRIGGER_R3_X, R.integer.TRIGGER_R3_Y),
+        OverlayPositionDefaults(ButtonType.BUTTON_TOUCH_HIDE, R.integer.BUTTON_TOUCH_HIDE_X, R.integer.BUTTON_TOUCH_HIDE_Y),
+        OverlayPositionDefaults(ButtonType.BUTTON_TOUCH_SWITCH, R.integer.BUTTON_TOUCH_SWITCH_X, R.integer.BUTTON_TOUCH_SWITCH_Y),
+		OverlayPositionDefaults(ButtonType.TATACON, R.integer.BUTTON_TATACON_X, R.integer.BUTTON_TATACON_Y)
     )
 
     @JvmStatic
@@ -175,7 +176,8 @@ object OverlayStore {
                 normalizedY = (resources.getInteger(entry.yResId) / 1000f).coerceNormalizedCoordinate()
             )
         }
-        return OverlayLayout(positions).normalized()
+        // Use same default positions for both portrait and landscape
+        return OverlayLayout(positions, positions).normalized()
     }
 
     @JvmStatic
@@ -314,36 +316,36 @@ object OverlayStore {
         if (basicOn) {
             // BASIC 组里包含的所有按钮
             listOf(
-                InputOverlay.ButtonType.BUTTON_CROSS,
-                InputOverlay.ButtonType.BUTTON_CIRCLE,
-                InputOverlay.ButtonType.BUTTON_SQUARE,
-                InputOverlay.ButtonType.BUTTON_TRIANGLE,
-                InputOverlay.ButtonType.BUTTON_SELECT,
-                InputOverlay.ButtonType.BUTTON_START,
-                InputOverlay.ButtonType.BUTTON_PS,
-                InputOverlay.ButtonType.DPAD_UP,
-                InputOverlay.ButtonType.STICK_LEFT,
-                InputOverlay.ButtonType.STICK_RIGHT,
-                InputOverlay.ButtonType.TRIGGER_L,
-                InputOverlay.ButtonType.TRIGGER_R,
-                InputOverlay.ButtonType.TATACON
+                ButtonType.BUTTON_CROSS,
+                ButtonType.BUTTON_CIRCLE,
+                ButtonType.BUTTON_SQUARE,
+                ButtonType.BUTTON_TRIANGLE,
+                ButtonType.BUTTON_SELECT,
+                ButtonType.BUTTON_START,
+                ButtonType.BUTTON_PS,
+                ButtonType.DPAD_UP,
+                ButtonType.STICK_LEFT,
+                ButtonType.STICK_RIGHT,
+                ButtonType.TRIGGER_L,
+                ButtonType.TRIGGER_R,
+                ButtonType.TATACON
             ).forEach { result = result or OverlayButtonRegistry.bitFor(it) }
         }
         if (l2r2On) {
-            result = result or OverlayButtonRegistry.bitFor(InputOverlay.ButtonType.TRIGGER_L2)
-            result = result or OverlayButtonRegistry.bitFor(InputOverlay.ButtonType.TRIGGER_R2)
+            result = result or OverlayButtonRegistry.bitFor(ButtonType.TRIGGER_L2)
+            result = result or OverlayButtonRegistry.bitFor(ButtonType.TRIGGER_R2)
         }
         if (l3r3On) {
-            result = result or OverlayButtonRegistry.bitFor(InputOverlay.ButtonType.TRIGGER_L3)
-            result = result or OverlayButtonRegistry.bitFor(InputOverlay.ButtonType.TRIGGER_R3)
+            result = result or OverlayButtonRegistry.bitFor(ButtonType.TRIGGER_L3)
+            result = result or OverlayButtonRegistry.bitFor(ButtonType.TRIGGER_R3)
         }
         if (touchSwitchOn) {
             result =
-                result or OverlayButtonRegistry.bitFor(InputOverlay.ButtonType.BUTTON_TOUCH_SWITCH)
+                result or OverlayButtonRegistry.bitFor(ButtonType.BUTTON_TOUCH_SWITCH)
         }
         if (hideToggleOn) {
             result =
-                result or OverlayButtonRegistry.bitFor(InputOverlay.ButtonType.BUTTON_TOUCH_HIDE)
+                result or OverlayButtonRegistry.bitFor(ButtonType.BUTTON_TOUCH_HIDE)
         }
         return result
     }
@@ -353,32 +355,64 @@ object OverlayStore {
         scopeId: String,
         fallback: OverlayLayout
     ): OverlayLayout {
-        val anyEntryPresent = defaultEntries.any { entry ->
-            prefs.contains(positionKey(scopeId, entry.buttonType, KEY_POSITION_X_SUFFIX)) &&
-                    prefs.contains(positionKey(scopeId, entry.buttonType, KEY_POSITION_Y_SUFFIX))
+        // Check if any portrait or landscape entry is present
+        val anyPortraitEntryPresent = defaultEntries.any { entry ->
+            prefs.contains(positionKey(scopeId, entry.buttonType, KEY_POSITION_X_SUFFIX, true)) &&
+                    prefs.contains(positionKey(scopeId, entry.buttonType, KEY_POSITION_Y_SUFFIX, true))
         }
-        if (!anyEntryPresent) {
+        val anyLandscapeEntryPresent = defaultEntries.any { entry ->
+            prefs.contains(positionKey(scopeId, entry.buttonType, KEY_POSITION_X_SUFFIX, false)) &&
+                    prefs.contains(positionKey(scopeId, entry.buttonType, KEY_POSITION_Y_SUFFIX, false))
+        }
+        if (!anyPortraitEntryPresent && !anyLandscapeEntryPresent) {
+            android.util.Log.d("TataconDebug", "loadStoredLayout: no entries found in prefs, using fallback")
             return fallback
         }
 
-        val positions = defaultEntries.associate { entry ->
-            val fallbackPosition = fallback.positionFor(entry.buttonType) ?: OverlayPosition(0f, 0f)
+        android.util.Log.d("TataconDebug", "loadStoredLayout: portraitPresent=" + anyPortraitEntryPresent + " landscapePresent=" + anyLandscapeEntryPresent)
+
+        val portraitPositions = defaultEntries.associate { entry ->
+            val fallbackPosition = fallback.portraitPositions[entry.buttonType] ?: OverlayPosition(0f, 0f)
             entry.buttonType to OverlayPosition(
                 normalizedX = prefs.getFloat(
-                    positionKey(scopeId, entry.buttonType, KEY_POSITION_X_SUFFIX),
+                    positionKey(scopeId, entry.buttonType, KEY_POSITION_X_SUFFIX, true),
                     fallbackPosition.normalizedX
                 ).coerceNormalizedCoordinate(),
                 normalizedY = prefs.getFloat(
-                    positionKey(scopeId, entry.buttonType, KEY_POSITION_Y_SUFFIX),
+                    positionKey(scopeId, entry.buttonType, KEY_POSITION_Y_SUFFIX, true),
                     fallbackPosition.normalizedY
                 ).coerceNormalizedCoordinate(),
 				scale = prefs.getFloat(
-					positionKey(scopeId, entry.buttonType, KEY_POSITION_SCALE_SUFFIX),
+					positionKey(scopeId, entry.buttonType, KEY_POSITION_SCALE_SUFFIX, true),
 					fallbackPosition.scale
-				).coerceIn(0.5f, 2.5f)
+				).coerceIn(0.2f, 20.0f)
             )
         }
-        return OverlayLayout(positions).normalized()
+
+        val landscapePositions = defaultEntries.associate { entry ->
+            val fallbackPosition = fallback.landscapePositions[entry.buttonType] ?: OverlayPosition(0f, 0f)
+            entry.buttonType to OverlayPosition(
+                normalizedX = prefs.getFloat(
+                    positionKey(scopeId, entry.buttonType, KEY_POSITION_X_SUFFIX, false),
+                    fallbackPosition.normalizedX
+                ).coerceNormalizedCoordinate(),
+                normalizedY = prefs.getFloat(
+                    positionKey(scopeId, entry.buttonType, KEY_POSITION_Y_SUFFIX, false),
+                    fallbackPosition.normalizedY
+                ).coerceNormalizedCoordinate(),
+				scale = prefs.getFloat(
+					positionKey(scopeId, entry.buttonType, KEY_POSITION_SCALE_SUFFIX, false),
+					fallbackPosition.scale
+				).coerceIn(0.2f, 20.0f)
+            )
+        }
+
+        val result = OverlayLayout(portraitPositions, landscapePositions).normalized()
+        android.util.Log.d("TataconDebug", "loadStoredLayout result: portrait=" + result.portraitPositions.size + " landscape=" + result.landscapePositions.size)
+        for ((btn, pos) in result.portraitPositions) {
+            android.util.Log.d("TataconDebug", "loadStoredLayout portrait btn=" + btn + " x=" + pos.normalizedX + " y=" + pos.normalizedY)
+        }
+        return result
     }
 
     private fun legacyGlobalState(context: Context): OverlayState {
@@ -429,7 +463,7 @@ object OverlayStore {
 
         val (width, height) = resolveLegacyOverlayBounds(context)
         val positions = defaultEntries.associate { entry ->
-            val fallbackPosition = fallback.positionFor(entry.buttonType) ?: OverlayPosition(0f, 0f)
+            val fallbackPosition = fallback.positionFor(entry.buttonType, false) ?: OverlayPosition(0f, 0f)
             val rawX = legacyPrefs.getFloat(legacyPositionKey(entry.buttonType, "-X"), fallbackPosition.normalizedX * width)
             val rawY = legacyPrefs.getFloat(legacyPositionKey(entry.buttonType, "-Y"), fallbackPosition.normalizedY * height)
             entry.buttonType to OverlayPosition(
@@ -437,7 +471,7 @@ object OverlayStore {
                 normalizedY = if (height > 0f) (rawY / height).coerceNormalizedCoordinate() else fallbackPosition.normalizedY
             )
         }
-        return OverlayLayout(positions).normalized()
+        return OverlayLayout(positions, positions).normalized()
     }
 
     private fun saveLayoutEntries(
@@ -446,12 +480,17 @@ object OverlayStore {
         layout: OverlayLayout
     ) {
         defaultEntries.forEach { entry ->
-            val position = layout.positionFor(entry.buttonType) ?: OverlayPosition(0f, 0f)
-            editor.putFloat(positionKey(scopeId, entry.buttonType, KEY_POSITION_X_SUFFIX), position.normalizedX)
-            editor.putFloat(positionKey(scopeId, entry.buttonType, KEY_POSITION_Y_SUFFIX), position.normalizedY)
-			editor.putFloat(positionKey(scopeId, entry.buttonType, KEY_POSITION_SCALE_SUFFIX), position.scale)
-            editor.remove(scopePrefix(scopeId) + ":" + KEY_LAYOUT_PREFIX + ":portrait:" + entry.buttonType + KEY_POSITION_X_SUFFIX)
-            editor.remove(scopePrefix(scopeId) + ":" + KEY_LAYOUT_PREFIX + ":portrait:" + entry.buttonType + KEY_POSITION_Y_SUFFIX)
+            // Save portrait layout
+            val portraitPosition = layout.portraitPositions[entry.buttonType] ?: OverlayPosition(0f, 0f)
+            editor.putFloat(positionKey(scopeId, entry.buttonType, KEY_POSITION_X_SUFFIX, true), portraitPosition.normalizedX)
+            editor.putFloat(positionKey(scopeId, entry.buttonType, KEY_POSITION_Y_SUFFIX, true), portraitPosition.normalizedY)
+			editor.putFloat(positionKey(scopeId, entry.buttonType, KEY_POSITION_SCALE_SUFFIX, true), portraitPosition.scale)
+
+            // Save landscape layout
+            val landscapePosition = layout.landscapePositions[entry.buttonType] ?: OverlayPosition(0f, 0f)
+            editor.putFloat(positionKey(scopeId, entry.buttonType, KEY_POSITION_X_SUFFIX, false), landscapePosition.normalizedX)
+            editor.putFloat(positionKey(scopeId, entry.buttonType, KEY_POSITION_Y_SUFFIX, false), landscapePosition.normalizedY)
+			editor.putFloat(positionKey(scopeId, entry.buttonType, KEY_POSITION_SCALE_SUFFIX, false), landscapePosition.scale)
         }
     }
 
@@ -462,9 +501,14 @@ object OverlayStore {
         editor.remove(configKey(scopeId, KEY_OVERLAY_OPACITY))
         editor.remove(configKey(scopeId, KEY_HIDE_ON_CONTROLLER))
         defaultEntries.forEach { entry ->
-            editor.remove(positionKey(scopeId, entry.buttonType, KEY_POSITION_X_SUFFIX))
-            editor.remove(positionKey(scopeId, entry.buttonType, KEY_POSITION_Y_SUFFIX))
-			editor.remove(positionKey(scopeId, entry.buttonType, KEY_POSITION_SCALE_SUFFIX))
+            // Remove both portrait and landscape keys
+            editor.remove(positionKey(scopeId, entry.buttonType, KEY_POSITION_X_SUFFIX, true))
+            editor.remove(positionKey(scopeId, entry.buttonType, KEY_POSITION_Y_SUFFIX, true))
+			editor.remove(positionKey(scopeId, entry.buttonType, KEY_POSITION_SCALE_SUFFIX, true))
+            editor.remove(positionKey(scopeId, entry.buttonType, KEY_POSITION_X_SUFFIX, false))
+            editor.remove(positionKey(scopeId, entry.buttonType, KEY_POSITION_Y_SUFFIX, false))
+			editor.remove(positionKey(scopeId, entry.buttonType, KEY_POSITION_SCALE_SUFFIX, false))
+            // Clean up old keys
             editor.remove(scopePrefix(scopeId) + ":" + KEY_LAYOUT_PREFIX + ":portrait:" + entry.buttonType + KEY_POSITION_X_SUFFIX)
             editor.remove(scopePrefix(scopeId) + ":" + KEY_LAYOUT_PREFIX + ":portrait:" + entry.buttonType + KEY_POSITION_Y_SUFFIX)
         }
@@ -478,8 +522,8 @@ object OverlayStore {
     private fun configKey(scopeId: String?, key: String): String =
         scopePrefix(scopeId) + ":" + KEY_CONFIG_PREFIX + ":" + key
 
-    private fun positionKey(scopeId: String?, buttonType: Int, suffix: String): String =
-        scopePrefix(scopeId) + ":" + KEY_LAYOUT_PREFIX + ":landscape:" + buttonType + suffix
+    private fun positionKey(scopeId: String?, buttonType: Int, suffix: String, isPortrait: Boolean): String =
+        scopePrefix(scopeId) + ":" + KEY_LAYOUT_PREFIX + ":" + (if (isPortrait) "portrait" else "landscape") + ":" + buttonType + suffix
 
     private fun scopePrefix(scopeId: String?): String {
         val normalizedScopeId = normalizeScopeId(scopeId)

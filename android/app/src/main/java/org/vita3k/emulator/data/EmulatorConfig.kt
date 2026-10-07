@@ -43,6 +43,10 @@ class EmulatorConfig {
     @JvmField var controllerBinds: IntArray = defaultControllerBinds()
     @JvmField var controllerAxisBinds: IntArray = defaultControllerAxisBinds()
 
+    // Display
+    @JvmField var screenOrientation: Int = 0  // 0=Auto, 1=Portrait, 2=Landscape
+    @JvmField var portraitYOffset: Float = 0.0f
+
     // Camera
     @JvmField var frontCameraType: Int = 2
     @JvmField var frontCameraId: String = ""
@@ -129,6 +133,9 @@ class EmulatorConfig {
         config.controllerAnalogMultiplier = controllerAnalogMultiplier
         config.controllerBinds = controllerBinds.copyOf()
         config.controllerAxisBinds = controllerAxisBinds.copyOf()
+        config.screenOrientation = screenOrientation
+        config.portraitYOffset = portraitYOffset
+
         config.frontCameraType = frontCameraType
         config.frontCameraId = frontCameraId
         config.frontCameraImage = frontCameraImage
@@ -210,6 +217,8 @@ class EmulatorConfig {
             controllerAnalogMultiplier == other.controllerAnalogMultiplier &&
             controllerBinds.contentEquals(other.controllerBinds) &&
             controllerAxisBinds.contentEquals(other.controllerAxisBinds) &&
+            screenOrientation == other.screenOrientation &&
+            portraitYOffset == other.portraitYOffset &&
             frontCameraType == other.frontCameraType &&
             frontCameraId == other.frontCameraId &&
             frontCameraImage == other.frontCameraImage &&
@@ -288,6 +297,8 @@ class EmulatorConfig {
         result = 31 * result + controllerAnalogMultiplier.hashCode()
         result = 31 * result + controllerBinds.contentHashCode()
         result = 31 * result + controllerAxisBinds.contentHashCode()
+        result = 31 * result + screenOrientation
+        result = 31 * result + portraitYOffset.hashCode()
         result = 31 * result + frontCameraType
         result = 31 * result + frontCameraId.hashCode()
         result = 31 * result + frontCameraImage.hashCode()

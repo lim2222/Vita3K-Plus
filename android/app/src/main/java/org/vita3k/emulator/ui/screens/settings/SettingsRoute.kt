@@ -99,6 +99,25 @@ fun SettingsRoute(
     val scrollState = rememberScrollState()
     val overlayScopeId = titleId.orEmpty()
     var overlayState by remember(titleId) { mutableStateOf(OverlayStore.defaultState(context)) }
+
+    // Track screen orientation changes and notify emulator
+    var prevScreenOrientation by remember { mutableStateOf(viewModel.config.screenOrientation) }
+    LaunchedEffect(viewModel.config.screenOrientation) {
+        if (prevScreenOrientation != viewModel.config.screenOrientation) {
+            prevScreenOrientation = viewModel.config.screenOrientation
+            // Notify the Emulator activity (if running) to update its renderer
+            org.vita3k.emulator.Emulator.notifyScreenOrientationChanged(viewModel.config.screenOrientation)
+        }
+    }
+
+    // Track portrait Y-offset changes and notify the running renderer immediately (no restart)
+    var prevPortraitYOffset by remember { mutableStateOf(viewModel.config.portraitYOffset) }
+    LaunchedEffect(viewModel.config.portraitYOffset) {
+        if (prevPortraitYOffset != viewModel.config.portraitYOffset) {
+            prevPortraitYOffset = viewModel.config.portraitYOffset
+            org.vita3k.emulator.Emulator.notifyPortraitYOffsetChanged(viewModel.config.portraitYOffset)
+        }
+    }
     var originalOverlayState by remember(titleId) { mutableStateOf(overlayState) }
     val connectedGamepads = rememberConnectedGamepads(context)
     val controllerConnected = connectedGamepads.isNotEmpty()
@@ -385,8 +404,22 @@ fun SettingsRoute(
             OverlayLayoutEditorDialog(
                 overlayConfig = overlayState.config,
                 overlayLayout = overlayState.layout,
+                screenOrientation = viewModel.config.screenOrientation,
                 onDismiss = { updatedLayout ->
                     overlayState = overlayState.copy(layout = updatedLayout)
+                    // Auto-save layout changes immediately
+                    val normalized = overlayState.copy(
+                        config = overlayState.config.normalized(),
+                        layout = updatedLayout.normalized()
+                    )
+                    android.util.Log.d("TataconDebug", "SettingsRoute saving layout: portrait=" + normalized.layout.portraitPositions.size
+                            + " landscape=" + normalized.layout.landscapePositions.size + " isPerApp=" + isPerApp)
+                    if (isPerApp) {
+                        OverlayStore.saveGameOverride(context, overlayScopeId, normalized)
+                    } else {
+                        OverlayStore.saveGlobalState(context, normalized)
+                    }
+                    originalOverlayState = normalized
                     showOverlayEditor = false
                 }
             )

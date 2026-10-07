@@ -664,23 +664,32 @@ void GLState::render_frame(DisplayState &display, const GxmState &gxm, MemState 
     if (fb_h > 0.0f) {
         const float window_aspect = fb_w / fb_h;
         constexpr float vita_aspect = static_cast<float>(DEFAULT_RES_WIDTH) / DEFAULT_RES_HEIGHT;
+        constexpr float portrait_aspect = 4.0f / 3.0f;  // 4:3 for portrait mode
         const bool pixel_perfect = fullscreen_hd_res_pixel_perfect && fullscreen
             && !(static_cast<int>(fb_w) % DEFAULT_RES_WIDTH)
             && !(static_cast<int>(fb_h) % (DEFAULT_RES_HEIGHT - 4));
 
+        // Determine effective aspect ratio based on screen orientation
+        // 0=Auto (follow device), 1=Portrait (4:3, top), 2=Landscape (Vita native)
+        // For Auto mode: check if device is in portrait orientation (rotation 0 or 2)
+        const bool is_portrait_mode = (screen_orientation == 1) || 
+                                      (screen_orientation == 0 && (device_native_rotation == 0 || device_native_rotation == 2));
+        const float target_aspect = is_portrait_mode ? portrait_aspect : vita_aspect;
+        const bool is_portrait = is_portrait_mode;
+
         if (stretch_the_display_area && !pixel_perfect) {
             vp_pos = { 0.0f, 0.0f };
             vp_size = { fb_w, fb_h };
-        } else if ((window_aspect > vita_aspect) && !pixel_perfect) {
-            vp_size.x = fb_h * vita_aspect;
+        } else if ((window_aspect > target_aspect) && !pixel_perfect) {
+            vp_size.x = fb_h * target_aspect;
             vp_size.y = fb_h;
             vp_pos.x = (fb_w - vp_size.x) / 2.0f;
-            vp_pos.y = 0.0f;
+            vp_pos.y = is_portrait ? 0.0f : 0.0f;
         } else {
             vp_size.x = fb_w;
-            vp_size.y = fb_w / vita_aspect;
+            vp_size.y = fb_w / target_aspect;
             vp_pos.x = 0.0f;
-            vp_pos.y = (fb_h - vp_size.y) / 2.0f;
+            vp_pos.y = is_portrait ? portrait_y_offset : (fb_h - vp_size.y) / 2.0f;
         }
     }
 
@@ -740,7 +749,7 @@ void GLState::render_frame(DisplayState &display, const GxmState &gxm, MemState 
 
         glBindTexture(GL_TEXTURE_2D, last_texture);
 
-        screen_renderer.render(vp_pos, vp_size, need_uv ? uvs : nullptr, static_cast<GLuint>(surface_handle), texture_size, default_fbo);
+        screen_renderer.render(vp_pos, vp_size, need_uv ? uvs : nullptr, static_cast<GLuint>(surface_handle), texture_size, default_fbo, screen_orientation);
     }
 
     update_overlays();

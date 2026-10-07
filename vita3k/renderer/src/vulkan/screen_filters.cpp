@@ -285,6 +285,11 @@ void SinglePassScreenFilter::render(bool is_pre_renderpass, vk::ImageView src_im
         // compute viewport now
         const float window_aspect = static_cast<float>(screen.extent.width) / screen.extent.height;
         constexpr float vita_aspect = static_cast<float>(DEFAULT_RES_WIDTH) / DEFAULT_RES_HEIGHT;
+        constexpr float portrait_aspect = 4.0f / 3.0f;
+        const bool is_portrait_mode = (screen.state.screen_orientation == 1) || 
+                                      (screen.state.screen_orientation == 0 && (screen.state.device_native_rotation == 0 || screen.state.device_native_rotation == 2));
+        const float target_aspect = is_portrait_mode ? portrait_aspect : vita_aspect;
+        const bool is_portrait = is_portrait_mode;
         const bool fullscreen_hd_res_pixel_perfect_en = screen.state.fullscreen_hd_res_pixel_perfect && screen.state.fullscreen && !(screen.extent.width % DEFAULT_RES_WIDTH) && !(screen.extent.height % (DEFAULT_RES_HEIGHT - 4));
         if (screen.state.stretch_the_display_area && !fullscreen_hd_res_pixel_perfect_en) {
             // Match the aspect ratio to the screen size.
@@ -301,9 +306,9 @@ void SinglePassScreenFilter::render(bool is_pre_renderpass, vk::ImageView src_im
         } else {
             // Window is tall. Pin left and right.
             vk_viewport.width = static_cast<float>(screen.extent.width);
-            vk_viewport.height = screen.extent.width / vita_aspect;
+            vk_viewport.height = screen.extent.width / target_aspect;
             vk_viewport.x = 0.0f;
-            vk_viewport.y = (screen.extent.height - vk_viewport.height) / 2;
+            vk_viewport.y = is_portrait ? screen.state.portrait_y_offset : (screen.extent.height - vk_viewport.height) / 2.0f;
         }
         screen.current_cmd_buffer.setViewport(0, vk_viewport);
     }

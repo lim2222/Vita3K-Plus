@@ -148,6 +148,7 @@ using PhysicalKeyCode = input::PhysicalKeyCode;
     code(bool, "apps-list-grid", false, apps_list_grid)                                                 \
     code(bool, "stretch_the_display_area", false, stretch_the_display_area)                             \
     code(bool, "fullscreen_hd_res_pixel_perfect", false, fullscreen_hd_res_pixel_perfect)               \
+    code(int, "screen_orientation", 0, screen_orientation)                                            \
     code(bool, "archive-log", false, archive_log)                                                       \
     code(std::string, "backend-renderer", "Vulkan", backend_renderer)                                   \
     code(std::string, "custom-driver-name", "", custom_driver_name)                                     \
@@ -203,6 +204,7 @@ using PhysicalKeyCode = input::PhysicalKeyCode;
     code(int, "screenshot-format", static_cast<int>(JPEG), screenshot_format)                           \
     code(bool, "disable-motion", false, disable_motion)                                                 \
     code(float, "controller-analog-multiplier", 1.0f, controller_analog_multiplier)                     \
+    code(float, "portrait-y-offset", 0.0f, portrait_y_offset)                                              \
     CONFIG_KEYBOARD(code)                                                                               \
     code(std::string, "user-id", std::string{}, user_id)                                                \
     code(bool, "user-auto-connect", false, auto_user_login)                                             \

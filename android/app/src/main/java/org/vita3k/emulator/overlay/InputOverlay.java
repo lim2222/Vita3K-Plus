@@ -18,6 +18,7 @@ import android.util.DisplayMetrics;
 import android.view.MotionEvent;
 import android.view.SurfaceView;
 import android.view.View;
+import java.util.Collections;
 import android.view.View.OnTouchListener;
 
 import android.os.VibrationEffect;
@@ -71,8 +72,54 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
   private float mScale = 1.0f;
   private int mOpacity = 100;
   private OverlayLayout mLayout;
+  private OverlayLayout mPortraitLayout;
+  private OverlayLayout mLandscapeLayout;
   private int mStableWidth = 0;
   private int mStableHeight = 0;
+  private int mDeviceNativeRotation = 0; // Surface rotation: 0..3 (0/2 = portrait)
+  // Screen orientation setting (0=Auto, 1=Portrait, 2=Landscape).
+  // Pushed from EmulatorConfig.screenOrientation via Emulator.applyScreenOrientation()
+  // and via the Settings editor dialog. Kept separate from OverlayConfig because
+  // OverlayConfig.screenOrientation is never persisted.
+  private int mScreenOrientation = 0;
+
+  private OverlayLayout getCurrentLayout() {
+      return isPortraitMode() ? mPortraitLayout : mLandscapeLayout;
+  }
+
+  private boolean isPortraitMode() {
+      // Forced portrait, forced landscape, or Auto (follow device rotation)
+      if (mScreenOrientation == 1)
+          return true;
+      if (mScreenOrientation == 2)
+          return false;
+      return isDevicePortrait();
+  }
+
+  private boolean isDevicePortrait() {
+      // Accepts Surface rotation constants (0=ROTATION_0, 1=ROTATION_90,
+      // 2=ROTATION_180, 3=ROTATION_270) as passed by getDisplay().getRotation(),
+      // or degrees (0/90/180/270). ROTATION_0 and ROTATION_180 are portrait.
+      int r = mDeviceNativeRotation;
+      if (r >= 0 && r <= 3)
+          return r == 0 || r == 2;
+      return r == 0 || r == 180;
+  }
+
+  public void setDeviceNativeRotation(int rotation) {
+      if (mDeviceNativeRotation != rotation) {
+          mDeviceNativeRotation = rotation;
+          refreshControls();
+      }
+  }
+
+  public void setScreenOrientation(int orientation) {
+      int resolved = Math.max(0, Math.min(2, orientation));
+      if (mScreenOrientation != resolved) {
+          mScreenOrientation = resolved;
+          refreshControls();
+      }
+  }
 
   // last Time the screen was touched
   private long mlastTouchTime;
@@ -523,12 +570,13 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
 
   public boolean onTouchWhileEditing(MotionEvent event)
   {
-    int pointerIndex = event.getActionIndex();
-    int fingerPositionX = (int) event.getX(pointerIndex);
-    int fingerPositionY = (int) event.getY(pointerIndex);
-
     int action = event.getAction() & MotionEvent.ACTION_MASK;
     boolean intersect = false;
+
+    // Get touch coordinates - use first pointer for single-touch (most common case)
+    // For multi-touch, we'd need to iterate all pointers
+    int fingerPositionX = (int) event.getX();
+    int fingerPositionY = (int) event.getY();
 
     // If a control is already being configured, only handle that one
     if (action == MotionEvent.ACTION_MOVE || action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_POINTER_UP) {
@@ -686,87 +734,87 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
   }
 
 
-  private void addVitaOverlayControls(LayoutBounds layoutBounds, OverlayLayout layout)
+  private void addVitaOverlayControls(LayoutBounds layoutBounds, OverlayLayout layout, boolean isPortrait)
   {
       overlayButtons.add(initializeOverlayButton(getContext(), R.drawable.button_cross,
               R.drawable.button_cross_pressed, ButtonType.BUTTON_CROSS, ControlId.a,
-              OVERLAY_MASK_BASIC, layout, layoutBounds, mScale, mOpacity));
+              OVERLAY_MASK_BASIC, layout, layoutBounds, mScale, mOpacity, isPortrait));
 
       overlayButtons.add(initializeOverlayButton(getContext(), R.drawable.button_circle,
               R.drawable.button_circle_pressed, ButtonType.BUTTON_CIRCLE, ControlId.b,
-              OVERLAY_MASK_BASIC, layout, layoutBounds, mScale, mOpacity));
+              OVERLAY_MASK_BASIC, layout, layoutBounds, mScale, mOpacity, isPortrait));
 
       overlayButtons.add(initializeOverlayButton(getContext(), R.drawable.button_square,
               R.drawable.button_square_pressed, ButtonType.BUTTON_SQUARE, ControlId.x,
-              OVERLAY_MASK_BASIC, layout, layoutBounds, mScale, mOpacity));
+              OVERLAY_MASK_BASIC, layout, layoutBounds, mScale, mOpacity, isPortrait));
 
       overlayButtons.add(initializeOverlayButton(getContext(), R.drawable.button_triangle,
               R.drawable.button_triangle_pressed, ButtonType.BUTTON_TRIANGLE, ControlId.y,
-              OVERLAY_MASK_BASIC, layout, layoutBounds, mScale, mOpacity));
+              OVERLAY_MASK_BASIC, layout, layoutBounds, mScale, mOpacity, isPortrait));
       overlayButtons.add(initializeOverlayButton(getContext(), R.drawable.button_start,
               R.drawable.button_start_pressed, ButtonType.BUTTON_START,
-              ControlId.start, OVERLAY_MASK_BASIC, layout, layoutBounds, mScale, mOpacity));
+              ControlId.start, OVERLAY_MASK_BASIC, layout, layoutBounds, mScale, mOpacity, isPortrait));
 
       overlayButtons.add(initializeOverlayButton(getContext(), R.drawable.button_ps,
             R.drawable.button_ps_pressed, ButtonType.BUTTON_PS,
-            ControlId.guide, OVERLAY_MASK_BASIC, layout, layoutBounds, mScale, mOpacity));
+            ControlId.guide, OVERLAY_MASK_BASIC, layout, layoutBounds, mScale, mOpacity, isPortrait));
 
       overlayButtons.add(initializeOverlayButton(getContext(), R.drawable.button_select,
               R.drawable.button_select_pressed, ButtonType.BUTTON_SELECT,
-              ControlId.select, OVERLAY_MASK_BASIC, layout, layoutBounds, mScale, mOpacity));
+              ControlId.select, OVERLAY_MASK_BASIC, layout, layoutBounds, mScale, mOpacity, isPortrait));
 
       overlayButtons.add(initializeOverlayButton(getContext(), R.drawable.button_l,
               R.drawable.button_l_pressed, ButtonType.TRIGGER_L,
-              ControlId.l1, OVERLAY_MASK_BASIC, layout, layoutBounds, mScale, mOpacity));
+              ControlId.l1, OVERLAY_MASK_BASIC, layout, layoutBounds, mScale, mOpacity, isPortrait));
       overlayButtons.add(initializeOverlayButton(getContext(), R.drawable.button_r,
               R.drawable.button_r_pressed, ButtonType.TRIGGER_R,
-              ControlId.r1, OVERLAY_MASK_BASIC, layout, layoutBounds, mScale, mOpacity));
+              ControlId.r1, OVERLAY_MASK_BASIC, layout, layoutBounds, mScale, mOpacity, isPortrait));
 
     overlayButtons.add(initializeOverlayButton(getContext(), R.drawable.button_l2,
             R.drawable.button_l2_pressed, ButtonType.TRIGGER_L2,
-            ControlId.l2, OVERLAY_MASK_L2R2, layout, layoutBounds, mScale, mOpacity));
+            ControlId.l2, OVERLAY_MASK_L2R2, layout, layoutBounds, mScale, mOpacity, isPortrait));
 
     overlayButtons.add(initializeOverlayButton(getContext(), R.drawable.button_r2,
             R.drawable.button_r2_pressed, ButtonType.TRIGGER_R2,
-            ControlId.r2, OVERLAY_MASK_L2R2, layout, layoutBounds, mScale, mOpacity));
+            ControlId.r2, OVERLAY_MASK_L2R2, layout, layoutBounds, mScale, mOpacity, isPortrait));
 
     // L3 and R3
     overlayButtons.add(initializeOverlayButton(getContext(), R.drawable.button_l3,
             R.drawable.button_l3_pressed, ButtonType.TRIGGER_L3,
-            ControlId.l3, OVERLAY_MASK_L3R3, layout, layoutBounds, mScale, mOpacity));
+            ControlId.l3, OVERLAY_MASK_L3R3, layout, layoutBounds, mScale, mOpacity, isPortrait));
 
     overlayButtons.add(initializeOverlayButton(getContext(), R.drawable.button_r3,
             R.drawable.button_r3_pressed, ButtonType.TRIGGER_R3,
-            ControlId.r3, OVERLAY_MASK_L3R3, layout, layoutBounds, mScale, mOpacity));
+            ControlId.r3, OVERLAY_MASK_L3R3, layout, layoutBounds, mScale, mOpacity, isPortrait));
 
     overlayButtons.add(initializeOverlayButton(getContext(), R.drawable.button_touch_f,
             R.drawable.button_touch_b, ButtonType.BUTTON_TOUCH_SWITCH,
-            ControlId.touch, OVERLAY_MASK_TOUCH_SCREEN_SWITCH, layout, layoutBounds, mScale, mOpacity));
+            ControlId.touch, OVERLAY_MASK_TOUCH_SCREEN_SWITCH, layout, layoutBounds, mScale, mOpacity, isPortrait));
 
     // show hide button
     overlayButtons.add(initializeOverlayButton(getContext(), R.drawable.button_hide,
             R.drawable.button_hide_pressed, ButtonType.BUTTON_TOUCH_HIDE,
-            ControlId.touch, OVERLAY_MASK_HIDE_TOGGLE, layout, layoutBounds, mScale, mOpacity));
+            ControlId.touch, OVERLAY_MASK_HIDE_TOGGLE, layout, layoutBounds, mScale, mOpacity, isPortrait));
 
       overlayDpads.add(initializeOverlayDpad(getContext(), R.drawable.dpad_idle,
               R.drawable.dpad_up,
               R.drawable.dpad_up_left,
               ButtonType.DPAD_UP, ControlId.dup, ControlId.ddown,
-              ControlId.dleft, ControlId.dright, layout, layoutBounds, mScale, mOpacity));
+              ControlId.dleft, ControlId.dright, layout, layoutBounds, mScale, mOpacity, isPortrait));
 
       overlayJoysticks.add(initializeOverlayJoystick(getContext(), R.drawable.joystick_range,
               R.drawable.joystick, R.drawable.joystick_pressed,
               ButtonType.STICK_LEFT, ControlId.axis_left_x,
-              ControlId.axis_left_y, layout, layoutBounds, mScale, mOpacity));
+              ControlId.axis_left_y, layout, layoutBounds, mScale, mOpacity, isPortrait));
       overlayJoysticks.add(initializeOverlayJoystick(getContext(), R.drawable.joystick_range,
               R.drawable.joystick, R.drawable.joystick_pressed,
               ButtonType.STICK_RIGHT, ControlId.axis_right_x,
-              ControlId.axis_right_y, layout, layoutBounds, mScale, mOpacity));
+              ControlId.axis_right_y, layout, layoutBounds, mScale, mOpacity, isPortrait));
       overlayTatacons.add(initializeOverlayTatacon(getContext(), R.drawable.tatacon,
               ButtonType.TATACON,
               ControlId.dup, ControlId.ddown, ControlId.b, ControlId.a,
               ControlId.l1, ControlId.r1,
-              layout, layoutBounds, mScale, mOpacity));
+              layout, layoutBounds, mScale, mOpacity, isPortrait));
   }
 
   public void refreshControls()
@@ -778,7 +826,7 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
 	overlayTatacons.clear();
 
     LayoutBounds layoutBounds = resolveLayoutBounds();
-    addVitaOverlayControls(layoutBounds, mLayout);
+    addVitaOverlayControls(layoutBounds, getCurrentLayout(), isPortraitMode());
 
     invalidate();
   }
@@ -811,7 +859,8 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
     android.util.Log.d("TataconDebug", "SAVE buttonType=" + buttonType + " cx=" + centerX + " cy=" + centerY
             + " layoutW=" + layoutBounds.width + " layoutH=" + layoutBounds.height
             + " normX=" + normalizedX + " normY=" + normalizedY + " scale=" + scale);
-    OverlayLayout updatedLayout = mLayout.withPosition(buttonType, normalizedX, normalizedY, scale);
+    OverlayLayout currentLayout = getCurrentLayout();
+    OverlayLayout updatedLayout = currentLayout.withPosition(buttonType, normalizedX, normalizedY, scale, isPortraitMode());
     setLayout(updatedLayout, false);
   }
 
@@ -830,7 +879,7 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
    */
   private static InputOverlayDrawableButton initializeOverlayButton(Context context,
           int defaultResId, int pressedResId, int legacyId, int control, int role,
-          OverlayLayout layout, LayoutBounds layoutBounds, float globalScale, int globalOpacity)
+          OverlayLayout layout, LayoutBounds layoutBounds, float globalScale, int globalOpacity, boolean isPortrait)
   {
     // Resources handle for fetching the initial Drawable resource.
     final Resources res = context.getResources();
@@ -852,7 +901,7 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
 
     scale *= globalScale;
 
-    OverlayPosition position = layout.positionFor(legacyId);
+    OverlayPosition position = layout.positionFor(legacyId, isPortrait);
     if (position == null)
       position = new OverlayPosition(0f, 0f);
     scale *= position.getScale();
@@ -918,7 +967,8 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
           OverlayLayout layout,
           LayoutBounds layoutBounds,
           float globalScale,
-          int globalOpacity)
+          int globalOpacity,
+          boolean isPortrait)
   {
     // Resources handle for fetching the initial Drawable resource.
     final Resources res = context.getResources();
@@ -928,7 +978,7 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
 
     scale *= globalScale;
 
-    OverlayPosition position = layout.positionFor(legacyId);
+    OverlayPosition position = layout.positionFor(legacyId, isPortrait);
     if (position == null)
       position = new OverlayPosition(0f, 0f);
     scale *= position.getScale();
@@ -982,7 +1032,7 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
   private static InputOverlayDrawableJoystick initializeOverlayJoystick(Context context,
           int resOuter, int defaultResInner, int pressedResInner, int legacyId, int xControl,
           int yControl, OverlayLayout layout, LayoutBounds layoutBounds, float globalScale,
-          int globalOpacity)
+          int globalOpacity, boolean isPortrait)
   {
     // Resources handle for fetching the initial Drawable resource.
     final Resources res = context.getResources();
@@ -991,7 +1041,7 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
     float scale = 0.275f;
     scale *= globalScale;
 
-    OverlayPosition position = layout.positionFor(legacyId);
+    OverlayPosition position = layout.positionFor(legacyId, isPortrait);
     if (position == null)
       position = new OverlayPosition(0f, 0f);
     scale *= position.getScale();
@@ -1035,14 +1085,14 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
           int drawableResId, int legacyId,
           int upControl, int downControl, int circleControl, int crossControl,
           int rimLeftControl, int rimRightControl,
-          OverlayLayout layout, LayoutBounds layoutBounds, float globalScale, int globalOpacity)
+          OverlayLayout layout, LayoutBounds layoutBounds, float globalScale, int globalOpacity, boolean isPortrait)
   {
     final Resources res = context.getResources();
 
     float scale = 4.0f;
     // scale *= globalScale; // tatacon don,t need this
 
-    OverlayPosition position = layout.positionFor(legacyId);
+    OverlayPosition position = layout.positionFor(legacyId, isPortrait);
     if (position == null)
       position = new OverlayPosition(1f, 1f);
     scale *= position.getScale();
@@ -1164,7 +1214,46 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
 
   public OverlayLayout captureLayout()
   {
-    return mLayout.normalized();
+    // Return both portrait and landscape layouts combined
+    OverlayLayout result = OverlayLayout.createFromJavaMaps(mPortraitLayout.getPortraitPositionsJava(), mLandscapeLayout.getLandscapePositionsJava()).normalized();
+    android.util.Log.d("TataconDebug", "CAPTURE portrait.size=" + result.getPortraitPositions().size()
+            + " landscape.size=" + result.getLandscapePositions().size());
+    java.util.Map<Integer, OverlayPosition> pp = result.getPortraitPositions();
+    for (java.util.Map.Entry<Integer, OverlayPosition> e : pp.entrySet()) {
+      android.util.Log.d("TataconDebug", "CAPTURE portrait btn=" + e.getKey()
+              + " x=" + e.getValue().getNormalizedX() + " y=" + e.getValue().getNormalizedY());
+    }
+    return result;
+  }
+
+  public void setLayout(OverlayLayout layout, boolean refresh)
+  {
+    // Update the layout that was provided (portrait or landscape), keep the other unchanged
+    boolean hasPortrait = !layout.getPortraitPositionsJava().isEmpty();
+    boolean hasLandscape = !layout.getLandscapePositionsJava().isEmpty();
+
+    // IMPORTANT: keep each orientation's layout pure - portrait layout holds ONLY portrait
+    // positions, landscape layout holds ONLY landscape positions. The other orientation's
+    // map must stay empty, because refreshControls() detects the current orientation by
+    // checking which map is non-empty, and captureLayout() reads portrait from
+    // mPortraitLayout and landscape from mLandscapeLayout. Cross-pollinating the maps
+    // makes landscape rendering read portrait coordinates (positions appear to revert).
+    if (hasPortrait) {
+      mPortraitLayout = OverlayLayout.createFromJavaMaps(layout.getPortraitPositionsJava(), Collections.emptyMap()).normalized();
+    }
+    if (hasLandscape) {
+      mLandscapeLayout = OverlayLayout.createFromJavaMaps(Collections.emptyMap(), layout.getLandscapePositionsJava()).normalized();
+    }
+    // If neither has positions, don't update either (shouldn't happen normally)
+
+    // mLayout keeps the full combined layout for backward compatibility
+    mLayout = OverlayLayout.createFromJavaMaps(
+            hasPortrait ? layout.getPortraitPositionsJava() : mPortraitLayout.getPortraitPositionsJava(),
+            hasLandscape ? layout.getLandscapePositionsJava() : mLandscapeLayout.getLandscapePositionsJava()
+    ).normalized();
+
+    if (refresh)
+      refreshControls();
   }
 
   public void refreshOverlayScope(String scopeId)
@@ -1230,19 +1319,6 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
     return new LayoutBounds(width, height);
   }
 
-  private void setLayout(OverlayLayout layout, boolean refresh)
-  {
-    OverlayLayout normalizedLayout = layout != null ? layout.normalized()
-            : OverlayStore.defaultLayout(getContext());
-    if (normalizedLayout.equals(mLayout))
-      return;
-
-    mLayout = normalizedLayout;
-
-    if (refresh)
-      refreshControls();
-  }
-
   private void applyResolvedState(OverlayState state, boolean refresh)
   {
     OverlayState resolvedState = state != null ? state : OverlayStore.defaultState(getContext());
@@ -1255,7 +1331,11 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
             || Float.compare(mScale, resolvedScale) != 0
             || mOpacity != resolvedOpacity;
 
-    mLayout = normalizedLayout;
+    // Initialize both portrait and landscape layouts from the normalized layout
+    mPortraitLayout = OverlayLayout.createFromJavaMaps(normalizedLayout.getPortraitPositionsJava(), Collections.emptyMap());
+    mLandscapeLayout = OverlayLayout.createFromJavaMaps(Collections.emptyMap(), normalizedLayout.getLandscapePositionsJava());
+    mLayout = normalizedLayout; // Keep for backward compatibility
+
     mScale = resolvedScale;
     mOpacity = resolvedOpacity;
 

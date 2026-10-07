@@ -1383,24 +1383,34 @@ void VKState::render_frame(DisplayState &display, const GxmState &gxm, MemState 
         if (fb_h > 0.0f) {
             const float window_aspect = fb_w / fb_h;
             constexpr float vita_aspect = static_cast<float>(DEFAULT_RES_WIDTH) / DEFAULT_RES_HEIGHT;
+            constexpr float portrait_aspect = 4.0f / 3.0f;  // 4:3 for portrait mode
             const bool pixel_perfect = fullscreen_hd_res_pixel_perfect && fullscreen
                 && !(screen_renderer.extent.width % DEFAULT_RES_WIDTH)
                 && !(screen_renderer.extent.height % (DEFAULT_RES_HEIGHT - 4));
+
+            // Determine effective aspect ratio based on screen orientation
+            // 0=Auto (follow device), 1=Portrait (4:3, top), 2=Landscape (Vita native)
+            // For Auto mode: check if device is in portrait orientation (rotation 0 or 2)
+            const bool is_portrait_mode = (screen_orientation == 1) || 
+                                          (screen_orientation == 0 && (device_native_rotation == 0 || device_native_rotation == 2));
+            const float target_aspect = is_portrait_mode ? portrait_aspect : vita_aspect;
+            const bool is_portrait = is_portrait_mode;
+
             if (stretch_the_display_area && !pixel_perfect) {
                 display.viewport_x = 0.0f;
                 display.viewport_y = 0.0f;
                 display.viewport_w = fb_w;
                 display.viewport_h = fb_h;
-            } else if ((window_aspect > vita_aspect) && !pixel_perfect) {
-                display.viewport_w = fb_h * vita_aspect;
+            } else if ((window_aspect > target_aspect) && !pixel_perfect) {
+                display.viewport_w = fb_h * target_aspect;
                 display.viewport_h = fb_h;
                 display.viewport_x = (fb_w - display.viewport_w) / 2.0f;
-                display.viewport_y = 0.0f;
+                display.viewport_y = is_portrait ? 0.0f : 0.0f;
             } else {
                 display.viewport_w = fb_w;
-                display.viewport_h = fb_w / vita_aspect;
+                display.viewport_h = fb_w / target_aspect;
                 display.viewport_x = 0.0f;
-                display.viewport_y = (fb_h - display.viewport_h) / 2.0f;
+                display.viewport_y = is_portrait ? portrait_y_offset : (fb_h - display.viewport_h) / 2.0f;
             }
         }
     }

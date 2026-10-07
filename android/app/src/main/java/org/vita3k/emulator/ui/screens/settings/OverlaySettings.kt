@@ -22,27 +22,28 @@ import org.vita3k.emulator.data.EmulatorConfig
 import org.vita3k.emulator.overlay.OverlayConfig
 import org.vita3k.emulator.overlay.InputOverlay
 import org.vita3k.emulator.overlay.OverlayButtonRegistry
+import org.vita3k.emulator.overlay.ButtonType
 
 private fun officialButtonName(legacyId: Int): String = when (legacyId) {
-    InputOverlay.ButtonType.BUTTON_CROSS -> "Cross"
-    InputOverlay.ButtonType.BUTTON_CIRCLE -> "Circle"
-    InputOverlay.ButtonType.BUTTON_SQUARE -> "Square"
-    InputOverlay.ButtonType.BUTTON_TRIANGLE -> "Triangle"
-    InputOverlay.ButtonType.BUTTON_SELECT -> "Select"
-    InputOverlay.ButtonType.BUTTON_START -> "Start"
-    InputOverlay.ButtonType.BUTTON_PS -> "PS Button"
-    InputOverlay.ButtonType.DPAD_UP -> "D-pad"
-    InputOverlay.ButtonType.STICK_LEFT -> "Left Stick"
-    InputOverlay.ButtonType.STICK_RIGHT -> "Right Stick"
-    InputOverlay.ButtonType.TRIGGER_L -> "L1"
-    InputOverlay.ButtonType.TRIGGER_R -> "R1"
-    InputOverlay.ButtonType.TRIGGER_L2 -> "L2"
-    InputOverlay.ButtonType.TRIGGER_R2 -> "R2"
-    InputOverlay.ButtonType.TRIGGER_L3 -> "L3"
-    InputOverlay.ButtonType.TRIGGER_R3 -> "R3"
-    InputOverlay.ButtonType.BUTTON_TOUCH_SWITCH -> "Touch Switch"
-    InputOverlay.ButtonType.BUTTON_TOUCH_HIDE -> "Hide Toggle"
-	InputOverlay.ButtonType.TATACON -> "Taiko Drum"
+    ButtonType.BUTTON_CROSS -> "Cross"
+    ButtonType.BUTTON_CIRCLE -> "Circle"
+    ButtonType.BUTTON_SQUARE -> "Square"
+    ButtonType.BUTTON_TRIANGLE -> "Triangle"
+    ButtonType.BUTTON_SELECT -> "Select"
+    ButtonType.BUTTON_START -> "Start"
+    ButtonType.BUTTON_PS -> "PS Button"
+    ButtonType.DPAD_UP -> "D-pad"
+    ButtonType.STICK_LEFT -> "Left Stick"
+    ButtonType.STICK_RIGHT -> "Right Stick"
+    ButtonType.TRIGGER_L -> "L1"
+    ButtonType.TRIGGER_R -> "R1"
+    ButtonType.TRIGGER_L2 -> "L2"
+    ButtonType.TRIGGER_R2 -> "R2"
+    ButtonType.TRIGGER_L3 -> "L3"
+    ButtonType.TRIGGER_R3 -> "R3"
+    ButtonType.BUTTON_TOUCH_SWITCH -> "Touch Switch"
+    ButtonType.BUTTON_TOUCH_HIDE -> "Hide Toggle"
+	ButtonType.TATACON -> "Taiko Drum"
     else -> "Button $legacyId"
 }
 
@@ -140,10 +141,10 @@ internal fun OverlaySettingsRows(
         )
 
         OverlayButtonRegistry.ids.filter { id ->
-            id != InputOverlay.ButtonType.TRIGGER_L2 &&
-            id != InputOverlay.ButtonType.TRIGGER_R2 &&
-            id != InputOverlay.ButtonType.TRIGGER_L3 &&
-            id != InputOverlay.ButtonType.TRIGGER_R3
+            id != ButtonType.TRIGGER_L2 &&
+            id != ButtonType.TRIGGER_R2 &&
+            id != ButtonType.TRIGGER_L3 &&
+            id != ButtonType.TRIGGER_R3
         }.forEach { id ->
             SettingsToggleRow(
                 title = officialButtonName(id),

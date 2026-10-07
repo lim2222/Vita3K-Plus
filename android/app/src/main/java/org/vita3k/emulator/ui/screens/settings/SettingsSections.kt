@@ -1802,6 +1802,34 @@ private fun EmulatorSettingsSection(
             ),
             onShowHelp = onShowHelp
         )
+        SettingsChoiceField(
+            title = stringResource(R.string.settings_emulator_screen_orientation),
+            options = listOf(
+                stringResource(R.string.settings_emulator_screen_orientation_auto),
+                stringResource(R.string.settings_emulator_screen_orientation_portrait),
+                stringResource(R.string.settings_emulator_screen_orientation_landscape)
+            ),
+            selectedIndex = cfg.screenOrientation.coerceIn(0, 2),
+            onSelect = { index -> onUpdate { screenOrientation = index } },
+            help = SettingsHelpEntry(
+                title = stringResource(R.string.settings_emulator_screen_orientation),
+                body = stringResource(R.string.settings_emulator_screen_orientation_desc)
+            ),
+            onShowHelp = onShowHelp
+        )
+        SettingsSliderRow(
+            title = stringResource(R.string.settings_emulator_portrait_y_offset, cfg.portraitYOffset.roundToInt()),
+            valueLabel = "${cfg.portraitYOffset.roundToInt()} px",
+            value = cfg.portraitYOffset.coerceIn(0f, 600f),
+            onValueChange = { onUpdate { portraitYOffset = ((it.roundToInt() / 10) * 10).toFloat().coerceIn(0f, 600f) } },
+            valueRange = 0f..600f,
+            steps = 59,
+            help = SettingsHelpEntry(
+                title = stringResource(R.string.settings_emulator_portrait_y_offset, cfg.portraitYOffset.roundToInt()),
+                body = stringResource(R.string.settings_emulator_portrait_y_offset_desc)
+            ),
+            onShowHelp = onShowHelp
+        )
     }
 
     if (!isPerApp) {

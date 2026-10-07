@@ -180,6 +180,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             }
             if (saveSucceeded) {
                 onSaved?.invoke(restartRequiredSettings)
+                // Notify Emulator activity (if running) to update renderer config
+                org.vita3k.emulator.Emulator.notifyRendererConfigChanged()
             }
         }
     }

@@ -97,6 +97,9 @@ struct State {
     bool disable_surface_sync;
     bool stretch_the_display_area;
     bool fullscreen_hd_res_pixel_perfect;
+    int screen_orientation = 0;  // 0=Auto, 1=Portrait, 2=Landscape
+    int device_native_rotation = 0;  // Device's physical rotation (0, 90, 180, 270)
+    float portrait_y_offset = 0.0f;
     bool fullscreen = false;
 
     Context *context;
@@ -217,6 +220,15 @@ struct State {
     }
     void set_fullscreen(bool enable) {
         fullscreen = enable;
+    }
+    void set_screen_orientation(int orientation) {
+        screen_orientation = orientation;
+    }
+    void set_portrait_y_offset(float offset) {
+        portrait_y_offset = offset;
+    }
+    void set_device_native_rotation(int rotation) {
+        device_native_rotation = rotation;
     }
     virtual bool map_memory(MemState &mem, Ptr<void> address, uint32_t size) {
         return true;
