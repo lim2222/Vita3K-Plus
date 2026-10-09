@@ -494,12 +494,16 @@ SDLMAIN_DECLSPEC int SDL_main(int argc, char *argv[]) {
 
                 case SDL_EVENT_FINGER_DOWN:
                 case SDL_EVENT_FINGER_MOTION:
-                case SDL_EVENT_FINGER_UP: {
-                    handle_touch_event(emuenv->touch, event.tfinger);
+                case SDL_EVENT_FINGER_UP:
+                case SDL_EVENT_FINGER_CANCELED: {
+                    SDL_TouchFingerEvent finger = event.tfinger;
+                    if (event.type == SDL_EVENT_FINGER_CANCELED)
+                        finger.type = SDL_EVENT_FINGER_UP; // a canceled finger is no longer on the panel: report it as lifted
+                    handle_touch_event(emuenv->touch, finger);
                     auto &mouse = emuenv->ctrl.overlay_mouse;
-                    mouse.x.store(event.tfinger.x * 960.f, std::memory_order_relaxed);
-                    mouse.y.store(event.tfinger.y * 544.f, std::memory_order_relaxed);
-                    mouse.pressed.store(event.type != SDL_EVENT_FINGER_UP, std::memory_order_relaxed);
+                    mouse.x.store(finger.x * 960.f, std::memory_order_relaxed);
+                    mouse.y.store(finger.y * 544.f, std::memory_order_relaxed);
+                    mouse.pressed.store(finger.type != SDL_EVENT_FINGER_UP, std::memory_order_relaxed);
                     break;
                 }
 
