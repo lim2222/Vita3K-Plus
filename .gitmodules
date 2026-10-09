@@ -65,7 +65,7 @@
 	url = https://github.com/fmtlib/fmt.git
 [submodule "external/LibAtrac9"]
 	path = external/LibAtrac9
-	url = https://github.com/Vita3K/LibAtrac9.git
+	url = https://github.com/lim2222/LibAtrac9.git
 [submodule "external/tracy"]
 	path = external/tracy
 	url = https://github.com/wolfpld/tracy.git
