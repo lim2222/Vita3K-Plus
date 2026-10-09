@@ -24,7 +24,7 @@ android {
 		minSdk = 28
 		targetSdk = 35
 		versionCode = 110
-		versionName = "1.1-taiko_1.0"
+		versionName = "1.2-taiko_1.0"
 
 		ndk {
 			// x86_64 is emulator-only and broken here: vcpkg OpenSSL cannot assemble its x86 SM3/SM4 code with the NDK.

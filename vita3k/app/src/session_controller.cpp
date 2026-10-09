@@ -148,6 +148,8 @@ bool AppSessionController::set_pause_reason(const AppSessionPauseReason reason, 
     if (next_reasons == current_reasons)
         return true;
 
+    LOG_INFO("[PAUSE] reason 0x{:x} enabled={} -> active mask 0x{:02x}", mask, enabled, next_reasons);
+
     active_pause_reasons.store(next_reasons, std::memory_order_release);
     apply_runtime_state_locked();
     return true;

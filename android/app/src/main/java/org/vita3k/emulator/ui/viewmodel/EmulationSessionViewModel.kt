@@ -35,6 +35,7 @@ data class EmulationSessionUiState(
     val overlayOpacity: Int = 100,
     val hideOverlayWhenControllerConnected: Boolean = true,
     val hapticAmplitude: Int = 255,
+    val hideOverlayTimeSeconds: Int = 10,
     val controllerConnected: Boolean = false,
     val statusMessage: String? = null,
     val overlayLayout: OverlayLayout = OverlayLayout()
@@ -201,6 +202,7 @@ class EmulationSessionViewModel(application: Application) : AndroidViewModel(app
     }
 
     fun togglePause(emulator: Emulator) {
+        NativeLib.logDiagnostics("[PAUSEUI] togglePause")
         if (uiState.isPaused) {
             closeMenu(emulator)
         } else {
@@ -339,7 +341,8 @@ class EmulationSessionViewModel(application: Application) : AndroidViewModel(app
             overlayScale = uiState.overlayScale,
             overlayOpacity = uiState.overlayOpacity,
             hideOverlayWhenControllerConnected = uiState.hideOverlayWhenControllerConnected,
-            hapticAmplitude = uiState.hapticAmplitude
+            hapticAmplitude = uiState.hapticAmplitude,
+            hideOverlayTimeSeconds = uiState.hideOverlayTimeSeconds
         ).normalized()
     }
 
@@ -443,7 +446,8 @@ class EmulationSessionViewModel(application: Application) : AndroidViewModel(app
             overlayScale = normalized.overlayScale,
             overlayOpacity = normalized.overlayOpacity,
             hideOverlayWhenControllerConnected = normalized.hideOverlayWhenControllerConnected,
-            hapticAmplitude = normalized.hapticAmplitude
+            hapticAmplitude = normalized.hapticAmplitude,
+            hideOverlayTimeSeconds = normalized.hideOverlayTimeSeconds
         )
     }
 }

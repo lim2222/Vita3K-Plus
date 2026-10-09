@@ -287,6 +287,7 @@ public class Emulator extends SDLActivity
     @Override
     protected void onResume() {
         super.onResume();
+        NativeLib.INSTANCE.logDiagnostics("[LIFECYCLE] onResume");
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME);
         refreshUiState(false);
         refreshNativeDisplayRotation();
@@ -330,6 +331,7 @@ public class Emulator extends SDLActivity
 
     @Override
     protected void onPause() {
+        NativeLib.INSTANCE.logDiagnostics("[LIFECYCLE] onPause");
         suspendForBackgroundIfNeeded();
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_PAUSE);
         super.onPause();
@@ -729,6 +731,7 @@ public class Emulator extends SDLActivity
     }
 
     public void openPauseMenuFromController() {
+        NativeLib.INSTANCE.logDiagnostics("[PAUSEUI] openPauseMenuFromController (GUIDE/PS key)");
         runOnUiThread(() -> {
             if (sessionViewModel == null || isFinishing() || sessionViewModel.getUiState().getShowMenu()
                     || sessionViewModel.getUiState().isEditingControls()) {

@@ -144,7 +144,12 @@ internal fun OverlaySettingsRows(
             id != ButtonType.TRIGGER_L2 &&
             id != ButtonType.TRIGGER_R2 &&
             id != ButtonType.TRIGGER_L3 &&
-            id != ButtonType.TRIGGER_R3
+            id != ButtonType.TRIGGER_R3 &&
+            // Utility buttons (Touch Switch / Hide Toggle) have their own dedicated
+            // toggle rows below; showing them here too would require enabling two
+            // switches for a single button.
+            id != ButtonType.BUTTON_TOUCH_SWITCH &&
+            id != ButtonType.BUTTON_TOUCH_HIDE
         }.forEach { id ->
             SettingsToggleRow(
                 title = officialButtonName(id),
@@ -169,6 +174,34 @@ internal fun OverlaySettingsRows(
             help = SettingsHelpEntry(
                 title = stringResource(R.string.settings_controls_hide_on_controller),
                 body = stringResource(R.string.settings_controls_hide_on_controller_desc),
+                scope = SettingsScope.Global
+            ),
+            onShowHelp = onShowHelp
+        )
+
+        val hideOverlayTimeOptions = listOf(0, 10, 15, 20, 30, 45, 60, 120, 180, 300)
+        val hideOverlayTimeLabels = hideOverlayTimeOptions.map { seconds ->
+            when {
+                seconds == 0 -> stringResource(R.string.settings_controls_hide_overlay_time_never)
+                seconds < 60 -> stringResource(R.string.settings_controls_hide_overlay_time_seconds, seconds)
+                else -> stringResource(R.string.settings_controls_hide_overlay_time_minutes, seconds / 60)
+            }
+        }
+        val hideTimeIndex = hideOverlayTimeOptions.indices
+            .minByOrNull { kotlin.math.abs(hideOverlayTimeOptions[it] - overlayConfig.hideOverlayTimeSeconds) }
+            ?: 0
+        SettingsScrollableChoiceSelector(
+            title = stringResource(R.string.settings_controls_hide_overlay_time),
+            options = hideOverlayTimeLabels,
+            selectedIndex = hideTimeIndex,
+            onSelected = { index ->
+                onOverlayConfigChange(
+                    overlayConfig.copy(hideOverlayTimeSeconds = hideOverlayTimeOptions[index])
+                )
+            },
+            help = SettingsHelpEntry(
+                title = stringResource(R.string.settings_controls_hide_overlay_time),
+                body = stringResource(R.string.settings_controls_hide_overlay_time_desc),
                 scope = SettingsScope.Global
             ),
             onShowHelp = onShowHelp

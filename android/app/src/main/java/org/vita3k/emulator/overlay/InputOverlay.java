@@ -21,6 +21,7 @@ import android.view.View;
 import java.util.Collections;
 import android.view.View.OnTouchListener;
 
+import android.os.SystemClock;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 
@@ -42,8 +43,17 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
   private final static int OVERLAY_MASK_UTILITY =
           OVERLAY_MASK_TOUCH_SCREEN_SWITCH | OVERLAY_MASK_HIDE_TOGGLE;
 
-  // wait 10 seconds without inputs before hiding
-  private final static int OVERLAY_TIME_BEFORE_HIDE = 10;
+  // Seconds of inactivity before the overlay auto-hides (0 = never).
+  // Pushed from OverlayConfig.hideOverlayTimeSeconds via setOverlayConfig().
+  private int mHideOverlayTimeSeconds = 10;
+
+  // Adaptive overlay haptics, ported from PPSSPP's System_Vibrate(HAPTIC_VIRTUAL_KEY).
+  // A global debounce stops a second finger from cancelling an in-flight rumble, and
+  // rapid consecutive hits use a softer, longer "rolling" pulse instead of a hard hit
+  // so the motor does not produce a granular / clacky feel.
+  private final static long HAPTIC_DEBOUNCE_MS = 35;
+  private final static long HAPTIC_RAPID_WINDOW_MS = 85;
+  private static long sLastVibrateTime = 0;
 
   private final Set<InputOverlayDrawableButton> overlayButtons = new HashSet<>();
   private final Set<InputOverlayDrawableDpad> overlayDpads = new HashSet<>();
@@ -162,13 +172,13 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
     // Force draw
     setWillNotDraw(false);
 
-    // Register as touch listener to receive touch events
-    setOnTouchListener(this);
-
-    // Ensure the view can receive touch events and focus
-    setFocusable(true);
-    setFocusableInTouchMode(true);
-    setClickable(true);
+    // NOTE: Do NOT set an OnTouchListener / setClickable(true) here.
+    // The overlay is drawn on top of EmuSurface (the SDL surface). If this view is
+    // clickable, its fallback onTouchEvent() consumes every ACTION_DOWN, so touches
+    // on empty areas never reach EmuSurface and SDL never receives SDL_EVENT_FINGER_*.
+    // That kills the emulated PS Vita front touchscreen.
+    // Touch is delivered through EmuSurface.onTouch(), which calls mOverlay.onTouch()
+    // and forwards non-overlay pointers to SDL.
 
     // Request focus for the overlay so it has priority on presses.
     requestFocus();
@@ -223,8 +233,12 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
     if(mOverlayMask == 0 || !mShowingOverlay || isInEditMode() || !mAutoHideEnabled)
       return;
 
+    // "Never" selected in settings -> keep the overlay always visible.
+    if (mHideOverlayTimeSeconds <= 0)
+      return;
+
     long current_time = System.currentTimeMillis();
-    if (current_time - mlastTouchTime >= OVERLAY_TIME_BEFORE_HIDE * 1000) {
+    if (current_time - mlastTouchTime >= mHideOverlayTimeSeconds * 1000L) {
       mShowingOverlay = false;
       invalidate();
     }
@@ -243,6 +257,15 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
   public void setOverlayConfig(OverlayConfig config) {
     if (config == null) return;
     mOverlayConfig = config;
+
+    int hideTime = config.hideOverlayTimeSeconds;
+    // When the user changes the hide delay (or turns it off), re-show the overlay so
+    // the new setting takes effect immediately instead of on the next touch.
+    if (hideTime != mHideOverlayTimeSeconds) {
+      mHideOverlayTimeSeconds = hideTime;
+      resetHideTimer();
+    }
+
     invalidate();
   }
 
@@ -437,10 +460,10 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
             {
               dpad.setTrackId(event.getPointerId(pointerIndex));
               concerned = true;
+              triggerHapticFeedback(); // DPad press —— vibrate only when the pad is actually hit
             }
-          triggerHapticFeedback(); // DPad press —— vibrate on first touch
 
-        case MotionEvent.ACTION_MOVE:
+          case MotionEvent.ACTION_MOVE:
             if (dpad.getTrackId() == event.getPointerId(pointerIndex))
             {
               concerned = true;
@@ -486,10 +509,14 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
       {
 	if (!mOverlayConfig.isButtonVisible(joystick.getLegacyId())) continue;
 
-        if (joystick.TrackEvent(event))
+        boolean joystickConcerned = joystick.TrackEvent(event);
+        if (joystickConcerned)
         {
           concerned = true;
-          triggerHapticFeedback(); // Joystick first touch
+          // Only the initial touch should buzz; TrackEvent() also returns true for
+          // every MOVE/UP while dragging, which would otherwise cause a continuous buzz.
+          if (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_POINTER_DOWN)
+            triggerHapticFeedback(); // Joystick first touch
 
           int joyX = Math.round(joystick.getX() * (1 << 15));
           joyX = Math.max(Short.MIN_VALUE, Math.min(Short.MAX_VALUE, joyX));
@@ -503,6 +530,9 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
 
     for (InputOverlayDrawableTatacon tatacon : overlayTatacons)
     {
+      // When the overlay is hidden via the hide toggle, the tatacon must be disabled
+      // too (not just hidden visually), matching every other control.
+      if (mHideOverlayButtons) continue;
       if (!mOverlayConfig.isButtonVisible(tatacon.getLegacyId())) continue;
 
       switch (action)
@@ -557,15 +587,43 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
   }
 
   private void triggerHapticFeedback() {
-    if (mOverlayConfig != null && mOverlayConfig.hapticAmplitude > 0) {
-      Context ctx = getContext();
-      if (ctx != null) {
-        Vibrator vib = (Vibrator) ctx.getSystemService(Context.VIBRATOR_SERVICE);
-        if (vib != null && vib.hasVibrator()) {
-          vib.vibrate(VibrationEffect.createOneShot(80, mOverlayConfig.hapticAmplitude));
-        }
-      }
+    if (mOverlayConfig == null || mOverlayConfig.hapticAmplitude <= 0)
+      return;
+
+    Context ctx = getContext();
+    if (ctx == null)
+      return;
+
+    Vibrator vib = (Vibrator) ctx.getSystemService(Context.VIBRATOR_SERVICE);
+    if (vib == null || !vib.hasVibrator())
+      return;
+
+    final long now = SystemClock.uptimeMillis();
+    final long delta = now - sLastVibrateTime;
+
+    // CRITICAL FIX FOR DUAL-HAND HITS: prevent a second finger from cancelling the
+    // ongoing rumble within the debounce window.
+    if (delta < HAPTIC_DEBOUNCE_MS)
+      return;
+    sLastVibrateTime = now;
+
+    final int strength = mOverlayConfig.hapticAmplitude; // 1..255, 0 handled above
+    final float norm = strength / 255f;
+
+    final int duration;
+    final int amplitude;
+    if (delta < HAPTIC_RAPID_WINDOW_MS) {
+      // SMOOTH ROLLING MODE: rapid hits get a soft, longer low-amplitude pulse so the
+      // motor keeps moving smoothly instead of stopping and restarting with a clack.
+      duration = 50 + Math.round(norm * 15f);                                   // 50..65 ms
+      amplitude = Math.max(1, Math.round(strength * 0.33f));                    // ~1/3 power
+    } else {
+      // SINGLE TAP MODE: full-power short impact for a deep, solid tap.
+      duration = 45 + Math.round(norm * 40f);                                   // 45..85 ms
+      amplitude = strength;
     }
+
+    vib.vibrate(VibrationEffect.createOneShot(duration, amplitude));
   }
 
   public boolean onTouchWhileEditing(MotionEvent event)

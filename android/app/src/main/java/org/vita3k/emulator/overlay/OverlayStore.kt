@@ -25,6 +25,7 @@ object OverlayStore {
     private const val KEY_OVERLAY_OPACITY = "overlay_opacity"
     private const val KEY_HIDE_ON_CONTROLLER = "hide_overlay_on_controller"
     private const val KEY_HAPTIC_AMPLITUDE = "haptic_amplitude"
+    private const val KEY_HIDE_OVERLAY_TIME = "hide_overlay_time"
     private const val KEY_CONFIG_PREFIX = "config"
     private const val KEY_LAYOUT_PREFIX = "layout"
     private const val KEY_POSITION_X_SUFFIX = ":x"
@@ -256,6 +257,10 @@ object OverlayStore {
                 configKey(normalizedScopeId, KEY_HAPTIC_AMPLITUDE),
                 normalizedState.config.hapticAmplitude
             )
+            putInt(
+                configKey(normalizedScopeId, KEY_HIDE_OVERLAY_TIME),
+                normalizedState.config.hideOverlayTimeSeconds
+            )
             saveLayoutEntries(this, normalizedScopeId, normalizedState.layout)
             if (markOverride && normalizedScopeId.isNotEmpty()) {
                 putBoolean(overrideEnabledKey(normalizedScopeId), true)
@@ -275,6 +280,7 @@ object OverlayStore {
         val opacityKey = configKey(scopeId, KEY_OVERLAY_OPACITY)
         val hideOnControllerKey = configKey(scopeId, KEY_HIDE_ON_CONTROLLER)
         val hapticAmplitudeKey = configKey(scopeId, KEY_HAPTIC_AMPLITUDE)
+        val hideOverlayTimeKey = configKey(scopeId, KEY_HIDE_OVERLAY_TIME)
 
         if (!prefs.contains(maskKey) && !prefs.contains(visibleButtonsKey)) {
             // 什么都没存过，用默认值
@@ -298,7 +304,8 @@ object OverlayStore {
                 hideOnControllerKey,
                 fallback.hideOverlayWhenControllerConnected
             ),
-            hapticAmplitude = prefs.getInt(hapticAmplitudeKey, fallback.hapticAmplitude)
+            hapticAmplitude = prefs.getInt(hapticAmplitudeKey, fallback.hapticAmplitude),
+            hideOverlayTimeSeconds = prefs.getInt(hideOverlayTimeKey, fallback.hideOverlayTimeSeconds)
         ).normalized()
     }
 
@@ -500,6 +507,7 @@ object OverlayStore {
         editor.remove(configKey(scopeId, KEY_OVERLAY_SCALE))
         editor.remove(configKey(scopeId, KEY_OVERLAY_OPACITY))
         editor.remove(configKey(scopeId, KEY_HIDE_ON_CONTROLLER))
+        editor.remove(configKey(scopeId, KEY_HIDE_OVERLAY_TIME))
         defaultEntries.forEach { entry ->
             // Remove both portrait and landscape keys
             editor.remove(positionKey(scopeId, entry.buttonType, KEY_POSITION_X_SUFFIX, true))

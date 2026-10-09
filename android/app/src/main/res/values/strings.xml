@@ -527,6 +527,11 @@
     <string name="settings_controls_show_desc">Show the touch control overlay while a game is running.</string>
     <string name="settings_controls_hide_on_controller">Hide Overlay When Controller Is Connected</string>
     <string name="settings_controls_hide_on_controller_desc">Automatically hide the touch overlay whenever a physical controller is connected.</string>
+    <string name="settings_controls_hide_overlay_time">Hide Overlay Time</string>
+    <string name="settings_controls_hide_overlay_time_desc">Automatically hide the touch controls after a period of inactivity. Choose Never to keep them always visible.</string>
+    <string name="settings_controls_hide_overlay_time_never">Never</string>
+    <string name="settings_controls_hide_overlay_time_seconds">%1$d sec</string>
+    <string name="settings_controls_hide_overlay_time_minutes">%1$d min</string>
     <string name="settings_controls_l2r2">Show L2 / R2 Buttons</string>
     <string name="settings_controls_l2r2_desc">Add the extra trigger buttons to the touch overlay.</string>
     <string name="settings_controls_l3r3">Show L3 / R3 Buttons</string>

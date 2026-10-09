@@ -28,7 +28,11 @@ data class OverlayConfig(
     val screenOrientation: Int = 0, // 0=Auto, 1=Portrait, 2=Landscape
 
     @JvmField
-    val portraitYOffset: Float = 0.0f
+    val portraitYOffset: Float = 0.0f,
+
+    // Seconds of inactivity before the overlay auto-hides. 0 = Never.
+    @JvmField
+    val hideOverlayTimeSeconds: Int = 10
 ) {
     val controlsVisible: Boolean
         get() = overlayMask != 0
@@ -126,10 +130,29 @@ data class OverlayConfig(
             InputOverlay.OVERLAY_MASK_L3R3 or
             InputOverlay.OVERLAY_MASK_TOUCH_SCREEN_SWITCH or
             InputOverlay.OVERLAY_MASK_HIDE_TOGGLE
+        val sanitizedMask = overlayMask.coerceAtLeast(0) and knownMask
+
+        // The touch switch and hide toggle have dedicated visibility toggles (group mask
+        // bits). Keep their per-button bits in sync with the group so a single toggle
+        // fully controls the utility button (no second, redundant switch needed).
+        val touchSwitchBit = OverlayButtonRegistry.bitFor(ButtonType.BUTTON_TOUCH_SWITCH)
+        val hideToggleBit = OverlayButtonRegistry.bitFor(ButtonType.BUTTON_TOUCH_HIDE)
+        var buttons = visibleButtons
+        buttons = if (sanitizedMask and InputOverlay.OVERLAY_MASK_TOUCH_SCREEN_SWITCH != 0)
+            buttons or touchSwitchBit
+        else
+            buttons and touchSwitchBit.inv()
+        buttons = if (sanitizedMask and InputOverlay.OVERLAY_MASK_HIDE_TOGGLE != 0)
+            buttons or hideToggleBit
+        else
+            buttons and hideToggleBit.inv()
+
         return copy(
-            overlayMask = overlayMask.coerceAtLeast(0) and knownMask,
+            overlayMask = sanitizedMask,
+            visibleButtons = buttons,
             overlayScale = overlayScale.coerceIn(50, 150),
-            overlayOpacity = overlayOpacity.coerceIn(20, 100)
+            overlayOpacity = overlayOpacity.coerceIn(20, 100),
+            hideOverlayTimeSeconds = hideOverlayTimeSeconds.coerceIn(0, 300)
         )
     }
 }
