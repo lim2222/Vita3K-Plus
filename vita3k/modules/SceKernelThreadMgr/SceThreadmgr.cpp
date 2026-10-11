@@ -24,6 +24,7 @@
 #include <kernel/sync_primitives.h>
 #include <kernel/types.h>
 #include <packages/functions.h>
+#include <rtc/rtc.h>
 
 #include <util/lock_and_find.h>
 
@@ -35,9 +36,8 @@
 TRACY_MODULE_NAME(SceThreadmgr);
 
 inline static uint64_t get_current_time() {
-    return std::chrono::duration_cast<std::chrono::microseconds>(
-        std::chrono::high_resolution_clock::now().time_since_epoch())
-        .count();
+    // Freeze-aware system time (see rtc::rtc_set_clock_paused).
+    return rtc_guest_clock_ticks();
 }
 
 EXPORT(int, __sceKernelCreateLwMutex, Ptr<SceKernelLwMutexWork> workarea, const char *name, unsigned int attr, Ptr<SceKernelCreateLwMutex_opt> opt) {
@@ -898,7 +898,8 @@ static int wait_thread_end(ThreadStatePtr &waiter, ThreadStatePtr &target, int *
         target->waiting_threads.push_back(waiter);
     }
 
-    const auto start = std::chrono::steady_clock::now();
+    // Count elapsed time in guest time so an emulator pause does not consume the timeout.
+    const uint64_t start = get_current_time();
     std::unique_lock<std::mutex> waiter_lock(waiter->mutex);
     if (!timeout) {
         waiter->status_cond.wait(waiter_lock, [&]() {
@@ -920,7 +921,7 @@ static int wait_thread_end(ThreadStatePtr &waiter, ThreadStatePtr &target, int *
         waiter_lock.unlock();
 
     if (timeout) {
-        const auto used = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
+        const uint64_t used = get_current_time() - start;
         *timeout = used >= *timeout ? 0 : *timeout - static_cast<SceUInt>(used);
     }
     if (stat != nullptr) {
@@ -1150,7 +1151,12 @@ static bool callback_pending(const std::vector<CallbackPtr> &callbacks) {
 static int delay_thread_cb(EmuEnvState &emuenv, SceUID thread_id, SceUInt delay_us) {
     constexpr int64_t CALLBACK_POLL_US = 2000;
     const ThreadStatePtr thread = emuenv.kernel.get_thread(thread_id);
-    const auto deadline = std::chrono::steady_clock::now() + std::chrono::microseconds(delay_us);
+    // Measure the delay in guest time so an emulator pause does not consume it.
+    const uint64_t start_us = get_current_time();
+    const auto remaining_us = [&] {
+        const uint64_t elapsed = get_current_time() - start_us;
+        return elapsed >= delay_us ? int64_t{ 0 } : static_cast<int64_t>(delay_us - elapsed);
+    };
     std::vector<CallbackPtr> callbacks;
     {
         const std::lock_guard<std::mutex> lock(emuenv.kernel.mutex);
@@ -1159,14 +1165,14 @@ static int delay_thread_cb(EmuEnvState &emuenv, SceUID thread_id, SceUInt delay_
 
     for (;;) {
         process_callbacks(emuenv.kernel, thread_id);
-        if (std::chrono::steady_clock::now() >= deadline)
+        if (remaining_us() <= 0)
             return SCE_KERNEL_OK;
 
         std::unique_lock<std::mutex> lock(thread->mutex);
         thread->update_status(ThreadStatus::wait);
         bool pending = false;
         for (;;) {
-            const int64_t left = std::chrono::duration_cast<std::chrono::microseconds>(deadline - std::chrono::steady_clock::now()).count();
+            const int64_t left = remaining_us();
             if (left <= 0)
                 break;
             const int64_t slice = (callbacks.empty() || left < CALLBACK_POLL_US) ? left : CALLBACK_POLL_US;

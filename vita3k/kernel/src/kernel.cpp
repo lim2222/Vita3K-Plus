@@ -29,6 +29,7 @@
 #include <cstring>
 #include <kernel/sync_primitives.h>
 #include <mem/ptr.h>
+#include <rtc/rtc.h>
 #include <util/lock_and_find.h>
 #include <util/log.h>
 
@@ -103,6 +104,10 @@ KernelState::KernelState()
 bool KernelState::init(MemState &mem, const CallImportFunc &call_import, bool cpu_opt) {
     corenum_allocator.set_max_core_count(MAX_CORE_COUNT);
     request_precise_host_timer();
+
+    // A game can be closed while paused, leaving the process-global clock
+    // frozen; make sure this game starts with a clean, running clock.
+    rtc_reset_clock_state();
 
     start_tick = rtc_get_ticks(rtc_base_ticks());
     base_tick = { rtc_base_ticks() };
@@ -242,6 +247,9 @@ void KernelState::process_exit() {
 }
 
 void KernelState::pause_threads() {
+    // Freeze the guest-visible clock before any thread stops running so no
+    // code sees an advancing clock once the pause has begun.
+    rtc_set_clock_paused(true);
     const std::lock_guard<std::mutex> lock(mutex);
     for (auto &[_, thread] : threads) {
         paused_threads_status[thread->id] = thread->status;
@@ -258,6 +266,9 @@ void KernelState::resume_threads() {
             thread->release_pause();
     }
     paused_threads_status.clear();
+    // Only thaw the guest clock once every thread has been released, so the
+    // resumed game never reads a time that skipped forward over the pause.
+    rtc_set_clock_paused(false);
 }
 
 int KernelState::stop_world(SceUID except_id, std::chrono::milliseconds budget) {

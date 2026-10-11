@@ -19,10 +19,62 @@
 
 #include <util/log.h>
 
-static std::uint64_t rtc_ticks_since_epoch() {
+#include <atomic>
+
+namespace {
+// While an emulator pause is active (guest threads suspended, audio stream
+// paused) the guest-visible clock must stay frozen as well. Without this, the
+// game resumes after a long pause with a system/RTC-time based timeline that
+// is seconds to minutes in the future, while the frozen audio playback only
+// continues from the pause point - the sound lags the picture by exactly the
+// pause duration.
+std::atomic<std::uint64_t> rtc_accumulated_paused_ticks{ 0 };
+std::atomic<bool> rtc_clock_paused{ false };
+std::atomic<std::uint64_t> rtc_pause_start_ticks{ 0 };
+
+std::uint64_t rtc_host_now_ticks() {
     const auto now = std::chrono::high_resolution_clock::now();
-    const auto now_timepoint = std::chrono::time_point_cast<VitaClocks>(now);
-    return now_timepoint.time_since_epoch().count();
+    return std::chrono::time_point_cast<VitaClocks>(now).time_since_epoch().count();
+}
+} // namespace
+
+void rtc_set_clock_paused(const bool paused) {
+    if (paused) {
+        if (!rtc_clock_paused.exchange(true, std::memory_order_relaxed))
+            rtc_pause_start_ticks.store(rtc_host_now_ticks(), std::memory_order_relaxed);
+    } else if (rtc_clock_paused.exchange(false, std::memory_order_relaxed)) {
+        const std::uint64_t delta = rtc_host_now_ticks() - rtc_pause_start_ticks.load(std::memory_order_relaxed);
+        rtc_accumulated_paused_ticks.fetch_add(delta, std::memory_order_relaxed);
+        LOG_INFO("[RTC] guest clock unfrozen after a {:.2f} s pause", static_cast<double>(delta) / VITA_CLOCKS_PER_SEC);
+    }
+}
+
+void rtc_reset_clock_state() {
+    // The clock-pause bookkeeping lives at process scope while a game can be
+    // launched, closed and relaunched several times inside the same emulator
+    // process. If a game is closed while paused, the frozen state would leak
+    // into the next game: its guest clock never advances, time-based logic
+    // stalls and the game can hang with no more frames presented. Start every
+    // game with a clean, running clock.
+    rtc_accumulated_paused_ticks.store(0, std::memory_order_relaxed);
+    rtc_pause_start_ticks.store(0, std::memory_order_relaxed);
+    rtc_clock_paused.store(false, std::memory_order_relaxed);
+}
+
+std::uint64_t rtc_guest_clock_ticks() {
+    const std::uint64_t host_now = rtc_host_now_ticks();
+    const std::uint64_t effective = rtc_clock_paused.load(std::memory_order_relaxed)
+        ? rtc_pause_start_ticks.load(std::memory_order_relaxed)
+        : host_now;
+    return effective - rtc_accumulated_paused_ticks.load(std::memory_order_relaxed);
+}
+
+bool rtc_clock_is_paused() {
+    return rtc_clock_paused.load(std::memory_order_relaxed);
+}
+
+static std::uint64_t rtc_ticks_since_epoch() {
+    return rtc_guest_clock_ticks();
 }
 
 std::uint64_t rtc_base_ticks() {

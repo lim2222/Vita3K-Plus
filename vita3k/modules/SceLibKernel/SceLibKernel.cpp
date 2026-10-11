@@ -29,6 +29,7 @@
 #include <kernel/state.h>
 #include <kernel/sync_primitives.h>
 #include <packages/functions.h>
+#include <rtc/rtc.h>
 #include <string_view>
 
 #include <io/device.h>
@@ -59,9 +60,8 @@ enum class TimerFlags : uint32_t {
 TRACY_MODULE_NAME(SceLibKernel);
 
 inline static uint64_t get_current_time() {
-    return std::chrono::duration_cast<std::chrono::microseconds>(
-        std::chrono::high_resolution_clock::now().time_since_epoch())
-        .count();
+    // Freeze-aware system time (see rtc::rtc_set_clock_paused).
+    return rtc_guest_clock_ticks();
 }
 
 VAR_EXPORT(__sce_libcparam) {

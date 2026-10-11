@@ -25,6 +25,7 @@
 #include <array>
 #include <atomic>
 #include <kernel/types.h>
+#include <rtc/rtc.h>
 #include <set>
 #include <thread>
 #include <util/lock_and_find.h>
@@ -73,6 +74,12 @@ inline static MutexPtrs &get_mutexes(KernelState &kernel, SyncWeight weight) {
 
 inline static CondvarPtrs &get_condvars(KernelState &kernel, SyncWeight weight) {
     return weight == SyncWeight::Light ? kernel.lwcondvars : kernel.condvars;
+}
+
+// Freeze-aware guest time. While the guest is paused this must not advance,
+// otherwise wait timeouts and timers would expire across a pause.
+inline uint64_t get_current_time() {
+    return rtc_guest_clock_ticks();
 }
 
 namespace {
@@ -208,7 +215,9 @@ inline static int handle_timeout(KernelState &kernel, const ThreadStatePtr &thre
 
     if (timeout) {
         const uint32_t budget = *timeout;
-        const auto start = std::chrono::steady_clock::now();
+        // Count the timeout in guest time so an emulator pause does not consume
+        // it (the guest clock is frozen while paused).
+        const uint64_t start = get_current_time();
         bool status = false;
         bool interrupted = false;
         uint32_t used = 0;
@@ -216,7 +225,8 @@ inline static int handle_timeout(KernelState &kernel, const ThreadStatePtr &thre
         while (used < budget) {
             const uint32_t slice = cb_wait ? std::min(budget - used, CALLBACK_POLL_US) : (budget - used);
             status = thread->wait_for_run_precise(primitive_lock, static_cast<int64_t>(slice));
-            used = static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count());
+            const uint64_t elapsed = get_current_time() - start;
+            used = elapsed >= budget ? budget : static_cast<uint32_t>(elapsed);
             if (status)
                 break;
             if (cb_wait && callback_pending(callbacks)) {
@@ -471,12 +481,6 @@ SceInt32 simple_event_delete(KernelState &kernel, const char *export_name, SceUI
 // *********
 // * Timer *
 // *********
-
-inline uint64_t get_current_time() {
-    return std::chrono::duration_cast<std::chrono::microseconds>(
-        std::chrono::high_resolution_clock::now().time_since_epoch())
-        .count();
-}
 
 SceUID timer_create(KernelState &kernel, MemState &mem, const char *export_name, const char *name, SceUID thread_id, SceUInt32 attr) {
     if ((strlen(name) > 31) && ((attr & 0x80) == 0x80)) {
@@ -2300,9 +2304,12 @@ SceSize msgpipe_recv(KernelState &kernel, const char *export_name, SceUID thread
 
             return finish();
         } else { // There's a timeout - wait until we can fill buffer or timeout
-            const auto deadline = std::chrono::steady_clock::now() + std::chrono::microseconds(*pTimeout);
+            // Count the timeout in guest time so an emulator pause does not consume it.
+            const uint64_t total_us = *pTimeout;
+            const uint64_t start_us = get_current_time();
             const auto remaining_us = [&] {
-                return std::max<int64_t>(std::chrono::duration_cast<std::chrono::microseconds>(deadline - std::chrono::steady_clock::now()).count(), 0);
+                const uint64_t elapsed = get_current_time() - start_us;
+                return elapsed >= total_us ? int64_t{ 0 } : static_cast<int64_t>(total_us - elapsed);
             };
             while (true) {
                 msgpipe_lock.unlock(); // Unlock message pipe object, else we'll deadlock
@@ -2450,9 +2457,12 @@ SceSize msgpipe_send(KernelState &kernel, const char *export_name, SceUID thread
             // Message pipe is still locked here, so we can read from data_buffer in finish()
             return finish();
         } else { // There's a timeout - wait until we can fill buffer or timeout
-            const auto deadline = std::chrono::steady_clock::now() + std::chrono::microseconds(*pTimeout);
+            // Count the timeout in guest time so an emulator pause does not consume it.
+            const uint64_t total_us = *pTimeout;
+            const uint64_t start_us = get_current_time();
             const auto remaining_us = [&] {
-                return std::max<int64_t>(std::chrono::duration_cast<std::chrono::microseconds>(deadline - std::chrono::steady_clock::now()).count(), 0);
+                const uint64_t elapsed = get_current_time() - start_us;
+                return elapsed >= total_us ? int64_t{ 0 } : static_cast<int64_t>(total_us - elapsed);
             };
             while (true) {
                 msgpipe_lock.unlock(); // Unlock message pipe object, else we'll deadlock

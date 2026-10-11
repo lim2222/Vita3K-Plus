@@ -20,6 +20,7 @@
 #include <codec/state.h>
 #include <io/functions.h>
 #include <kernel/state.h>
+#include <rtc/rtc.h>
 
 #include <util/lock_and_find.h>
 #include <util/log.h>
@@ -197,9 +198,8 @@ enum SceAvPlayerState {
 };
 
 static inline uint64_t current_time() {
-    return std::chrono::duration_cast<std::chrono::microseconds>(
-        std::chrono::high_resolution_clock::now().time_since_epoch())
-        .count();
+    // Freeze-aware media clock (see rtc::rtc_set_clock_paused).
+    return rtc_guest_clock_ticks();
 }
 
 static Ptr<uint8_t> get_buffer(const PlayerPtr &player, MediaType media_type,

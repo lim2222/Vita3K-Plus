@@ -21,6 +21,7 @@
 #include <kernel/state.h>
 #include <mem/functions.h>
 #include <mem/ptr.h>
+#include <rtc/rtc.h>
 #include <util/align.h>
 
 #include <util/log.h>
@@ -91,10 +92,34 @@ void request_precise_host_timer() {
 
 // Keep this a plain timed wait, because spinning here would churn the waited-on primitive's own lock
 // and can starve whichever thread is trying to signal it.
+//
+// The timeout is measured in guest time: while the emulator is paused the guest
+// clock is frozen, so a guest wait must not expire. Every timed guest wait
+// (sceKernelDelayThread, condvar/event timeouts, message pipes, ...) goes
+// through here, so this keeps all of them from making progress during a pause -
+// the same effect PPSSPP gets by halting its CPU loop.
 bool ThreadState::wait_for_run_precise(std::unique_lock<std::mutex> &lock, int64_t timeout_us) {
-    const auto deadline = std::chrono::steady_clock::now() + std::chrono::microseconds(timeout_us);
     const auto woken = [&] { return status == ThreadStatus::run; };
-    return status_cond.wait_until(lock, deadline, woken);
+    if (woken() || timeout_us <= 0)
+        return woken();
+
+    const std::uint64_t start = rtc_guest_clock_ticks();
+    const std::uint64_t want = static_cast<std::uint64_t>(timeout_us);
+    for (;;) {
+        if (woken())
+            return true;
+        const std::uint64_t elapsed = rtc_guest_clock_ticks() - start;
+        if (elapsed >= want)
+            return false;
+        const std::uint64_t left = want - elapsed;
+        // While paused guest time does not advance, so waiting for the whole
+        // remaining host duration would let the wait complete; poll at a low
+        // rate instead and only ever count guest time.
+        const auto step = rtc_clock_is_paused()
+            ? std::chrono::milliseconds(100)
+            : std::chrono::microseconds(static_cast<int64_t>(left));
+        status_cond.wait_for(lock, step);
+    }
 }
 
 // LOG_DEBUG is compiled out, so set this true to get every thread creation back rather than one per shape

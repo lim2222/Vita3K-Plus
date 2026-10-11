@@ -94,6 +94,27 @@ inline time_t rtc_timegm(struct tm *tm) {
 
 std::uint64_t rtc_base_ticks();
 std::uint64_t rtc_get_ticks(uint64_t base_tick);
+
+// Freeze or unfreeze the guest-visible clock. While an emulator pause is
+// active the RTC / system-time counters must not advance; otherwise after a
+// long pause the game's time-based logic resumes in the future while the
+// (paused) audio playback has not moved, leaving sound lagging the picture by
+// exactly the pause duration.
+void rtc_set_clock_paused(bool paused);
+
+// Clear the process-global clock-pause bookkeeping. Must be called once when a
+// game is (re)initialized so a clock left frozen by a previous game that was
+// closed while paused does not leak into the new game.
+void rtc_reset_clock_state();
+
+// Freeze-aware host clock in Vita microseconds (VITA_CLOCKS_PER_SEC units).
+// While paused this stops advancing; on resume it continues without a jump.
+std::uint64_t rtc_guest_clock_ticks();
+
+// True while the guest clock is frozen by an active emulator pause. Timed guest
+// waits must not expire while this is true.
+bool rtc_clock_is_paused();
+
 void __RtcPspTimeToTm(tm *val, const SceDateTime *pt);
 void __RtcTicksToPspTime(SceDateTime *t, std::uint64_t ticks);
 std::uint64_t __RtcPspTimeToTicks(const SceDateTime *pt);

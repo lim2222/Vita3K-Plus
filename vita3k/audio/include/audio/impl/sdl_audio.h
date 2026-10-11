@@ -19,6 +19,7 @@
 
 #include "../state.h"
 #include <SDL3/SDL_audio.h>
+#include <atomic>
 #include <condition_variable>
 
 class SDLAudioAdapter : public AudioAdapter {
@@ -26,6 +27,11 @@ private:
     SDL_AudioDeviceID device_id = 0;
     int device_buffer_samples = 0;
     SDL_AudioSpec dst_spec;
+    // Set while an emulator pause is active (see switch_state). While paused the
+    // device is frozen, so the stream never drains; feed threads must block
+    // instead of pushing, or every chunk queued during the pause becomes a
+    // backlog that keeps playing stale audio after the game has moved on.
+    std::atomic<bool> paused{ false };
 
     static void SDLCALL thread_wakeup_callback(void *userdata, SDL_AudioStream *stream, int additional_amount, int total_amount);
 

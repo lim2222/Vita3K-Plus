@@ -126,21 +126,31 @@ static void vblank_sync_thread(EmuEnvState &emuenv) {
     DisplayState &display = emuenv.display;
     std::thread watchdog(freeze_watchdog_thread, std::ref(emuenv));
 
+    // Keeps ticking at 60 Hz while the guest vblank counter is frozen during a
+    // pause, so the paused UI/common-dialog screen refresh still runs at 30 fps.
+    uint64_t ui_refresh_counter = 0;
+
     while (!display.abort.load()) {
         std::vector<ThreadStatePtr> vblank_ready;
         {
             const std::lock_guard<std::mutex> guard(display.mutex);
+            const bool guest_paused = emuenv.kernel.is_threads_paused();
+            ++ui_refresh_counter;
 
             {
                 const std::lock_guard<std::mutex> guard_info(display.display_info_mutex);
-                ++display.vblank_count;
+                // While the guest is paused its vblank counter must stay frozen;
+                // otherwise the game resumes with a wall-clock jump matching the
+                // pause duration while the paused audio stream has not moved.
+                if (!guest_paused)
+                    ++display.vblank_count;
 
                 // in this case, even though no new game frames are being rendered, we still need to update the screen
-                if (emuenv.kernel.is_threads_paused() || (emuenv.common_dialog.status == SCE_COMMON_DIALOG_STATUS_RUNNING))
+                if (guest_paused || (emuenv.common_dialog.status == SCE_COMMON_DIALOG_STATUS_RUNNING))
                     // only display the UI/common dialog at 30 fps
                     // this is necessary so that the command buffer processing doesn't get starved
                     // with vsync enabled and a screen with a refresh rate of 60Hz or less
-                    if (display.vblank_count % 2 == 0) {
+                    if (ui_refresh_counter % 2 == 0) {
                         emuenv.renderer->should_display = true;
                         emuenv.renderer->command_buffer_queue.wake();
                     }

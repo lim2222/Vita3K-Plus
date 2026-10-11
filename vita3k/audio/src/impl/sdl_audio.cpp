@@ -19,6 +19,7 @@
 #include "util/log.h"
 #include <SDL3/SDL_audio.h>
 #include <SDL3/SDL_hints.h>
+#include <chrono>
 
 #define SDL_CHECK_EXT(condition, ret)                         \
     do {                                                      \
@@ -66,10 +67,18 @@ bool SDLAudioAdapter::init() {
 }
 
 void SDLAudioAdapter::switch_state(const bool pause) {
-    if (pause)
+    paused.store(pause, std::memory_order_relaxed);
+    if (pause) {
         SDL_CHECK_VOID(SDL_PauseAudioDevice(device_id));
-    else
+    } else {
         SDL_CHECK_VOID(SDL_ResumeAudioDevice(device_id));
+        // Wake the feed threads parked while the session was paused so they
+        // resume feeding the moment playback is allowed again (the stream
+        // callback would also do this, but being explicit avoids a missed wake
+        // turning into permanent silence). state.mutex guards out_ports.
+        const std::lock_guard<std::mutex> lock(state.mutex);
+        wake_all_ports();
+    }
 }
 
 AudioOutPortPtr SDLAudioAdapter::open_port(int nb_channels, int freq, int nb_sample) {
@@ -97,12 +106,27 @@ void SDLAudioAdapter::audio_output(AudioOutPort &out_port, const void *buffer) {
 
     //  Put audio to the port's stream and see how much is left to play.
     SDLAudioOutPort &port = static_cast<SDLAudioOutPort &>(out_port);
-    // If there's lots of audio left to play, stop this thread.
-    // The audio callback will wake it up later when it's running out of data.
+    // If there's lots of audio left to play, or the session is paused, stop this
+    // thread. The audio callback (or the resume in switch_state) will wake it up
+    // later when it's running out of data.
     const int samples_available = get_rest_sample(port);
-    if (samples_available > get_threshold_samples(device_buffer_samples)) {
+    if (samples_available > get_threshold_samples(device_buffer_samples) || paused.load(std::memory_order_relaxed)) {
         std::unique_lock<std::mutex> lock(port.mutex);
-        port.cond_var.wait_for(lock, std::chrono::microseconds(port.len_microseconds * 2));
+        if (paused.load(std::memory_order_relaxed)) {
+            // While the session is paused the device is frozen, so the stream can
+            // never drain. Block until the session resumes instead of pushing the
+            // chunk into the paused stream (which would build a backlog that keeps
+            // playing the pre-pause song after the game has moved on).
+            while (paused.load(std::memory_order_relaxed) && !out_port.stopping)
+                port.cond_var.wait(lock);
+        } else {
+            // Normal flow control: give the device time to drain the stream so
+            // playback stays in sync with the game. Without this wait the feed
+            // thread pushes at several times real-time and the stream keeps
+            // growing, so the audible audio slowly falls behind and ends up
+            // replaying sounds from earlier scenes.
+            port.cond_var.wait_for(lock, std::chrono::microseconds(port.len_microseconds * 2));
+        }
         if (out_port.stopping)
             return;
     }
