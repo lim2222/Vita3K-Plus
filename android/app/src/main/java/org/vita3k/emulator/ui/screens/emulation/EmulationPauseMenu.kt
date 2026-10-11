@@ -182,10 +182,12 @@ private fun EmulationPauseMenu(
         }
     }
 
-    val hostVisible = menuVisibilityState.currentState ||
-        menuVisibilityState.targetState ||
-        controlsVisibilityState.currentState ||
-        controlsVisibilityState.targetState ||
+    // The overlay host is driven straight from the logical menu state instead of
+    // the animation transition, so the view is gone the same frame the menu is
+    // closed. Relying on the transition kept the host alive for the whole exit
+    // animation, which covered the game that had already resumed.
+    val hostVisible = uiState.showMenu ||
+        uiState.isEditingControls ||
         uiState.showExitConfirmation ||
         settingsViewModel.operationResult != null ||
         globalSettingsViewModel.operationResult != null ||
@@ -193,7 +195,10 @@ private fun EmulationPauseMenu(
         pendingHelp != null
 
     SideEffect {
-        hostView.visibility = if (hostVisible) View.VISIBLE else View.GONE
+        val desired = if (hostVisible) View.VISIBLE else View.GONE
+        if (hostView.visibility != desired) {
+            hostView.visibility = desired
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -212,7 +217,10 @@ private fun EmulationPauseMenu(
         AnimatedVisibility(
             visibleState = menuVisibilityState,
             enter = fadeIn(tween(220)),
-            exit = fadeOut(tween(180)),
+            // Instant exit: the game is already running the moment X/Resume is
+            // tapped, so any lingering scrim would just cover the action. The
+            // menu must vanish on the very next frame (0 ms, no fade).
+            exit = fadeOut(tween(0)),
             modifier = Modifier.fillMaxSize()
         ) {
             Box(
@@ -230,7 +238,9 @@ private fun EmulationPauseMenu(
         AnimatedVisibility(
             visibleState = menuVisibilityState,
             enter = slideInHorizontally(initialOffsetX = { it / 8 }) + fadeIn(tween(240)),
-            exit = slideOutHorizontally(targetOffsetX = { it / 8 }) + fadeOut(tween(180)),
+            // Instant exit, same as the scrim above: 0 ms so the drawer does not
+            // keep covering the resumed game for even one frame.
+            exit = slideOutHorizontally(targetOffsetX = { it / 8 }, animationSpec = tween(0)) + fadeOut(tween(0)),
             modifier = Modifier.fillMaxSize()
         ) {
             Row(

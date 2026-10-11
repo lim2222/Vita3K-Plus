@@ -568,6 +568,15 @@ public class Emulator extends SDLActivity
         ensureOverlayUiOrder();
     }
 
+    // Hides the pause menu synchronously, without waiting for a Compose
+    // recomposition. Called when the user dismisses the menu (X / Resume) so the
+    // resumed game is never covered while the Compose frame is still pending.
+    public void hidePauseMenuImmediately() {
+        if (pauseMenuView != null && pauseMenuView.getVisibility() != View.GONE) {
+            pauseMenuView.setVisibility(View.GONE);
+        }
+    }
+
     public void ensureOverlayUiOrder() {
         if (imeOverlayView != null) {
             imeOverlayView.bringToFront();

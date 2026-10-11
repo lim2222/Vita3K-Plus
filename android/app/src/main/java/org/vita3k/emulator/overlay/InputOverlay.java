@@ -1296,21 +1296,32 @@ public final class InputOverlay extends SurfaceView implements OnTouchListener
     // checking which map is non-empty, and captureLayout() reads portrait from
     // mPortraitLayout and landscape from mLandscapeLayout. Cross-pollinating the maps
     // makes landscape rendering read portrait coordinates (positions appear to revert).
-    if (hasPortrait) {
-      mPortraitLayout = OverlayLayout.createFromJavaMaps(layout.getPortraitPositionsJava(), Collections.emptyMap()).normalized();
-    }
-    if (hasLandscape) {
-      mLandscapeLayout = OverlayLayout.createFromJavaMaps(Collections.emptyMap(), layout.getLandscapePositionsJava()).normalized();
-    }
+    OverlayLayout newPortraitLayout = hasPortrait
+            ? OverlayLayout.createFromJavaMaps(layout.getPortraitPositionsJava(), Collections.emptyMap()).normalized()
+            : mPortraitLayout;
+    OverlayLayout newLandscapeLayout = hasLandscape
+            ? OverlayLayout.createFromJavaMaps(Collections.emptyMap(), layout.getLandscapePositionsJava()).normalized()
+            : mLandscapeLayout;
     // If neither has positions, don't update either (shouldn't happen normally)
 
     // mLayout keeps the full combined layout for backward compatibility
-    mLayout = OverlayLayout.createFromJavaMaps(
-            hasPortrait ? layout.getPortraitPositionsJava() : mPortraitLayout.getPortraitPositionsJava(),
-            hasLandscape ? layout.getLandscapePositionsJava() : mLandscapeLayout.getLandscapePositionsJava()
+    OverlayLayout newLayout = OverlayLayout.createFromJavaMaps(
+            newPortraitLayout.getPortraitPositionsJava(),
+            newLandscapeLayout.getLandscapePositionsJava()
     ).normalized();
 
-    if (refresh)
+    // refreshControls() clears and rebuilds every overlay drawable, decoding and
+    // scaling bitmaps, which can take hundreds of milliseconds. Skip the rebuild
+    // when the layout is unchanged: applyOverlayState() re-applies the same layout
+    // every time the pause menu closes, and that rebuild used to block the UI
+    // thread long enough to keep the menu on screen after the game had resumed.
+    boolean changed = !newLayout.equals(mLayout);
+
+    mPortraitLayout = newPortraitLayout;
+    mLandscapeLayout = newLandscapeLayout;
+    mLayout = newLayout;
+
+    if (refresh && changed)
       refreshControls();
   }
 

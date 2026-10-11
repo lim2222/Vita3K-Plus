@@ -185,11 +185,15 @@ class EmulationSessionViewModel(application: Application) : AndroidViewModel(app
     }
 
     fun closeMenu(emulator: Emulator) {
+        val wasPaused = uiState.isPaused
+
         releaseInputs(emulator)
-        if (uiState.isPaused) {
-            setNativePauseReasonEnabled(NativeLib.PAUSE_REASON_MENU, false)
-        }
-        setNativeInputIntercepted(false)
+
+        // Dismiss the overlay first: the running game must never be hidden behind
+        // a menu that is still on screen, or players miss notes in that window.
+        // Hiding the view directly means the dismissal does not wait for a
+        // Compose frame.
+        emulator.hidePauseMenuImmediately()
         uiState = uiState.copy(
             showMenu = false,
             isPaused = false,
@@ -197,7 +201,15 @@ class EmulationSessionViewModel(application: Application) : AndroidViewModel(app
             showExitConfirmation = false,
             statusMessage = null
         )
+
+        // Restore the controller overlay while the guest is still paused so the
+        // resumed game can immediately read the overlay controls.
         applyOverlayState(emulator)
+
+        setNativeInputIntercepted(false)
+        if (wasPaused) {
+            setNativePauseReasonEnabled(NativeLib.PAUSE_REASON_MENU, false)
+        }
         emulator.restoreImeAfterPauseMenu()
     }
 
